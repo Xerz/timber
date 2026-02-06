@@ -133,13 +133,9 @@ async fn load_cards(app: AppHandle, state: State<'_, SharedState>) -> Result<Vec
         );
 
         let meta = product_map.get(&item.product_id);
-        let image_url = match meta.and_then(|m| m.card_picture.clone()) {
-            Some(url) => match cache_image(&client, &url).await {
-                Ok(Some(cached)) => cached,
-                _ => url,
-            },
-            None => String::new(),
-        };
+        let image_url = meta
+            .and_then(|m| m.card_picture.clone())
+            .unwrap_or_default();
 
         let title = meta
             .and_then(|m| m.display_name.clone())
