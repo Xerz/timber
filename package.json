@@ -1,0 +1,16 @@
+{
+  "name": "drova-launcher",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "test": "node --test",
+    "test:ui": "playwright test"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@playwright/test": "^1.41.2"
+  }
+}

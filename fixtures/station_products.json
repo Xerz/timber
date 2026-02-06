@@ -1,0 +1,20 @@
+[
+  {
+    "productId": "pid-desktop",
+    "useDefaultDesktop": true,
+    "title": "Desktop",
+    "published": true,
+    "enabled": true,
+    "verified": 2,
+    "available": true
+  },
+  {
+    "productId": "pid-disabled",
+    "useDefaultDesktop": false,
+    "title": "Disabled",
+    "published": true,
+    "enabled": false,
+    "verified": 2,
+    "available": true
+  }
+]

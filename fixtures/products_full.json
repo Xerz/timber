@@ -1,0 +1,31 @@
+[
+  {
+    "productId": "pid-desktop",
+    "title": "Desktop",
+    "useDefaultDesktop": true,
+    "displayName": "Рабочий стол",
+    "publisher": "Valve",
+    "developer": "Valve",
+    "requiredAccount": null,
+    "noLicenseRequred": true,
+    "licenseType": null,
+    "ageGroup": "16+",
+    "descriptionEn": "Access to everything with almost no restrictions.",
+    "descriptionRu": "Доступ ко всему почти без ограничений.",
+    "cardPicture": "https://files.drova.io/io.drova.web/images/products/card_pictures/pid-desktop.jpg",
+    "pagePicture": "https://files.drova.io/io.drova.web/images/products/game_page_pictures/pid-desktop.jpg"
+  },
+  {
+    "productId": "pid-disabled",
+    "title": "Disabled",
+    "useDefaultDesktop": false,
+    "displayName": "Выключенная игра",
+    "publisher": "",
+    "developer": "",
+    "requiredAccount": "Steam",
+    "noLicenseRequred": false,
+    "ageGroup": "16+",
+    "descriptionRu": "Игра для теста",
+    "cardPicture": "https://files.drova.io/io.drova.web/images/products/card_pictures/pid-disabled.jpg"
+  }
+]

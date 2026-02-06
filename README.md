@@ -1,31 +1,29 @@
-# Drova Launcher MVP
+# Drova Launcher (Tauri)
 
 ## Что внутри
-- AHK v2 скрипт с разделением по модулям.
-- UI на HTML/CSS/JS, максимально близкий к плиткам сайта.
-- Кроссплатформенные тесты бизнес‑логики на Node.js.
+- Tauri 2 (Rust backend + web UI) вместо AHK.
+- UI в `src/` (HTML/CSS/JS), стили сайта подключаются с `https://drova.io/index.min.css`.
+- Кроссплатформенные тесты (node + Playwright).
 
 ## Структура
-- `launcher.ahk` — точка входа AHK.
-- `lib/` — модули AHK (реестр, API, модель, кэш, UI).
-- `ui/` — HTML/CSS/JS интерфейс.
-- `src/` — JS модель для тестов.
-- `tests/` — тесты `node --test`.
-- `fixtures/` — фикстуры ответов API.
+- `src/` — UI.
+- `src-tauri/` — Tauri backend (Rust).
+- `public/` — mock‑данные для UI‑тестов.
+- `fixtures/` — фикстуры JSON для unit тестов модели.
+- `tests/` — тесты `node --test` и Playwright.
 
 ## Разработка на macOS
-- UI превью: открыть `ui/index.html?mock=1` в браузере.
-- Тесты: `npm test`.
+- UI превью (без Tauri): открыть `src/index.html?mock=1` через простой сервер.
+- Тесты логики: `npm test`.
 - UI‑тесты: `npm run test:ui` (перед первым запуском: `npx playwright install`).
+ - Для запуска Tauri на macOS нужны переменные окружения `DROVA_STATION_UUID` и `DROVA_AUTH_TOKEN`.
 
 ## Windows рантайм
-- Установить AutoHotkey v2.
-- Установить WebView2 Runtime.
-- Подключить WebViewToo и настроить `lib/webview2.ahk`.
-- Запуск: `launcher.ahk`.
+- Установить Rust и Tauri prerequisites.
+- `npm install`
+- `npm run tauri dev`
 
 ## Примечания
-- В `launcher.ahk` используются заголовки `X-Auth-Token`.
-- Кэш изображений хранится в `cache/images`.
-- CSS подключен из `https://drova.io/index.min.css`.
+- Для API используется заголовок `X-Auth-Token`.
 - Desktop‑карточка закрывает лаунчер без запуска exe.
+- Кэш картинок хранится во временной директории `drova-launcher/images`.

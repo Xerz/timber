@@ -1,0 +1,16 @@
+{
+  "productId": "pid-desktop",
+  "title": "Desktop",
+  "published": true,
+  "defaultGamePath": "C:\\Program Files (x86)\\Steam\\Steam.exe",
+  "defaultWorkPath": "C:\\Program Files (x86)\\Steam",
+  "defaultAllowedPaths": "",
+  "defaultArgs": "-language russian",
+  "gamePath": null,
+  "workPath": null,
+  "allowedPaths": null,
+  "args": null,
+  "enabled": true,
+  "verified": 2,
+  "available": true
+}
