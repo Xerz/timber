@@ -565,4 +565,55 @@ mod tests {
         assert!(!is_expired(recent, Duration::from_secs(60)));
         assert!(is_expired(old, Duration::from_secs(60)));
     }
+
+    #[test]
+    fn test_build_product_map_overwrites_duplicates() {
+        let mut first = sample_meta("p1");
+        first.title = Some("First".to_string());
+        let mut second = sample_meta("p1");
+        second.title = Some("Second".to_string());
+        let map = build_product_map(&[first, second]);
+        assert_eq!(map.len(), 1);
+        let meta = map.get("p1").unwrap();
+        assert_eq!(meta.title.as_deref(), Some("Second"));
+    }
+
+    #[test]
+    fn test_station_products_url() {
+        let url = station_products_url("uuid-1");
+        assert_eq!(
+            url,
+            "https://services.drova.io/server-manager/serverproduct/list4edit2/uuid-1"
+        );
+    }
+
+    #[test]
+    fn test_product_details_url() {
+        let url = product_details_url("uuid-1", "pid-1");
+        assert_eq!(
+            url,
+            "https://services.drova.io/server-manager/serverproduct/list4edit2/uuid-1/pid-1"
+        );
+    }
+
+    #[test]
+    fn test_products_full_url() {
+        let url = products_full_url();
+        assert_eq!(
+            url,
+            "https://services.drova.io/product-manager/product/listfull2?limit=2000"
+        );
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_get_station_info_from_env() {
+        std::env::set_var("DROVA_STATION_UUID", "uuid-env");
+        std::env::set_var("DROVA_AUTH_TOKEN", "token-env");
+        let info = get_station_info().unwrap();
+        assert_eq!(info.uuid, "uuid-env");
+        assert_eq!(info.token, "token-env");
+        std::env::remove_var("DROVA_STATION_UUID");
+        std::env::remove_var("DROVA_AUTH_TOKEN");
+    }
 }

@@ -81,3 +81,14 @@ test("buildLaunchParams prefers overrides", () => {
   assert.equal(launch.workDir, "C:\\\\Work");
   assert.equal(launch.args, "-custom");
 });
+
+test("buildCards falls back to item title or default", () => {
+  const enabled = [
+    { productId: "p1", enabled: true, available: true, title: "FromItem" },
+    { productId: "p2", enabled: true, available: true }
+  ];
+  const map = buildProductMap([]);
+  const cards = buildCards(enabled, map);
+  assert.equal(cards[0].title, "FromItem");
+  assert.equal(cards[1].title, "Игра");
+});

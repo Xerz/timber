@@ -9,6 +9,44 @@ const publicRoot = path.join(projectRoot, "public");
 let server;
 let baseUrl;
 
+async function addTauriStub(page, options = {}) {
+  const { cards = [], loadError = null, launchError = null } = options;
+  await page.addInitScript(({ cards, loadError, launchError }) => {
+    window.__TAURI_TEST_DISABLE_AUTO_INIT = true;
+    window.__invokeCalls = [];
+    window.__statusCallback = null;
+    window.__emitStatus = (payload) => {
+      if (window.__statusCallback) {
+        window.__statusCallback({ payload });
+      }
+    };
+    window.__TAURI__ = {
+      core: {
+        invoke: (cmd, args) => {
+          window.__invokeCalls.push({ cmd, args });
+          if (cmd === "load_cards") {
+            if (loadError) return Promise.reject(new Error(loadError));
+            return Promise.resolve(cards);
+          }
+          if (cmd === "launch_game") {
+            if (launchError) return Promise.reject(new Error(launchError));
+            return Promise.resolve(null);
+          }
+          return Promise.reject(new Error(`Unknown command: ${cmd}`));
+        }
+      },
+      event: {
+        listen: (event, cb) => {
+          if (event === "status") {
+            window.__statusCallback = cb;
+          }
+          return Promise.resolve(() => {});
+        }
+      }
+    };
+  }, { cards, loadError, launchError });
+}
+
 function getContentType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === ".html") return "text/html";
@@ -111,4 +149,51 @@ test("status shows retry on data load failure", async ({ page }) => {
   const status = page.locator("#status");
   await expect(status).not.toHaveClass(/is-hidden/);
   await expect(page.locator("#retryBtn")).toBeVisible();
+});
+
+test("tauri mode renders cards from invoke", async ({ page }) => {
+  await addTauriStub(page, {
+    cards: [
+      { productId: "a", title: "A", imageUrl: "", alt: "", requiredAccount: "", isFree: false },
+      { productId: "b", title: "B", imageUrl: "", alt: "", requiredAccount: "", isFree: true }
+    ]
+  });
+  await page.goto(`${baseUrl}/index.html`);
+  await page.waitForFunction(() => typeof window.__resetLauncher === "function");
+  await page.evaluate(() => window.__resetLauncher());
+  await page.waitForSelector(".gameList__item");
+  await expect(page.locator(".gameList__item")).toHaveCount(2);
+});
+
+test("tauri status event updates progress text", async ({ page }) => {
+  await addTauriStub(page, { cards: [] });
+  await page.goto(`${baseUrl}/index.html`);
+  await page.waitForFunction(() => typeof window.__resetLauncher === "function");
+  await page.evaluate(() => window.__resetLauncher());
+  await page.waitForFunction(() => typeof window.__emitStatus === "function");
+  await page.evaluate(() => window.__emitStatus({ text: "Загружаем…", current: 1, total: 3 }));
+  await expect(page.locator("#statusSub")).toHaveText("Получено 1/3");
+});
+
+test("tauri load_cards error shows retry and fallback", async ({ page }) => {
+  await addTauriStub(page, { loadError: "fail" });
+  await page.goto(`${baseUrl}/index.html`);
+  await page.waitForFunction(() => typeof window.__resetLauncher === "function");
+  await page.evaluate(() => window.__resetLauncher());
+  await expect(page.locator("#retryBtn")).toBeVisible();
+  await expect(page.locator('.gameList__item[data-product-id="desktop"]')).toHaveCount(1);
+});
+
+test("tauri launch_game error clears launching and shows status", async ({ page }) => {
+  await addTauriStub(page, {
+    cards: [{ productId: "a", title: "A", imageUrl: "", alt: "", requiredAccount: "", isFree: false }],
+    launchError: "boom"
+  });
+  await page.goto(`${baseUrl}/index.html`);
+  await page.waitForFunction(() => typeof window.__resetLauncher === "function");
+  await page.evaluate(() => window.__resetLauncher());
+  const card = page.locator(".gameList__item").first();
+  await card.click();
+  await expect(page.locator("#statusText")).toHaveText("Ошибка запуска");
+  await expect(card).not.toHaveClass(/is-launching/);
 });

@@ -4,9 +4,19 @@ const statusText = document.getElementById("statusText");
 const statusSub = document.getElementById("statusSub");
 const retryBtn = document.getElementById("retryBtn");
 
-const tauri = window.__TAURI__ || null;
-const invoke = tauri?.core?.invoke || tauri?.tauri?.invoke || tauri?.invoke || null;
-const listen = tauri?.event?.listen || null;
+let invoke = null;
+let listen = null;
+let started = false;
+let lastLoadPromise = null;
+const skipAutoInit = window.__TAURI_TEST_DISABLE_AUTO_INIT === true;
+
+function resolveTauriApi() {
+  const tauri = window.__TAURI__ || null;
+  return {
+    invoke: tauri?.core?.invoke || tauri?.tauri?.invoke || tauri?.invoke || null,
+    listen: tauri?.event?.listen || null
+  };
+}
 
 const fallbackDesktopCard = {
   productId: "desktop",
@@ -103,16 +113,19 @@ function handleStatusEvent(payload) {
   setStatus(text || "Загрузка…");
 }
 
-async function loadCards() {
-  setStatus("Загрузка…");
-  try {
-    const cards = await invoke("load_cards");
-    clearStatus();
-    render(cards || []);
-  } catch (error) {
-    setStatus("Ошибка загрузки данных", String(error), true);
-    render([fallbackDesktopCard]);
-  }
+function loadCards() {
+  lastLoadPromise = (async () => {
+    setStatus("Загрузка…");
+    try {
+      const cards = await invoke("load_cards");
+      clearStatus();
+      render(cards || []);
+    } catch (error) {
+      setStatus("Ошибка загрузки данных", String(error), true);
+      render([fallbackDesktopCard]);
+    }
+  })();
+  return lastLoadPromise;
 }
 
 function preloadImage(cardEl, imageUrl) {
@@ -136,22 +149,77 @@ function withTimeout(promise, ms, message) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-if (listen) {
-  listen("status", (event) => handleStatusEvent(event.payload));
+function initTauri(options = { load: true }) {
+  if (started) return true;
+  const api = resolveTauriApi();
+  if (api.listen && !listen) {
+    listen = api.listen;
+    listen("status", (event) => handleStatusEvent(event.payload));
+  }
+  if (api.invoke && !invoke) {
+    invoke = api.invoke;
+  }
+  if (invoke && !started) {
+    started = true;
+    if (options.load) {
+      loadCards();
+    }
+    return true;
+  }
+  return false;
 }
 
-if (invoke) {
-  loadCards();
-} else {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("mock") === "1") {
-    fetch("/mock-data.json")
-      .then(res => res.json())
-      .then(render)
-      .catch(() => setStatus("Не удалось загрузить mock-data.json", "", true));
+const params = new URLSearchParams(window.location.search);
+const mockMode = params.get("mock") === "1";
+
+if (!skipAutoInit) {
+  if (!initTauri()) {
+    if (mockMode) {
+      fetch("/mock-data.json")
+        .then(res => res.json())
+        .then(render)
+        .catch(() => setStatus("Не удалось загрузить mock-data.json", "", true));
+    } else {
+      window.addEventListener("DOMContentLoaded", () => {
+        if (!started) initTauri();
+      });
+      setTimeout(() => {
+        if (!started) initTauri();
+      }, 0);
+    }
   }
+} else if (mockMode) {
+  fetch("/mock-data.json")
+    .then(res => res.json())
+    .then(render)
+    .catch(() => setStatus("Не удалось загрузить mock-data.json", "", true));
 }
 
 window.__setCards = render;
 window.__setStatus = setStatus;
 window.__clearStatus = clearStatus;
+window.__resetLauncher = () => {
+  invoke = null;
+  listen = null;
+  started = false;
+  if (window.__TAURI_TEST_DISABLE_AUTO_INIT === true) {
+    const api = resolveTauriApi();
+    if (api.listen) {
+      listen = api.listen;
+      listen("status", (event) => handleStatusEvent(event.payload));
+    }
+    if (api.invoke) {
+      invoke = api.invoke;
+      started = true;
+      return loadCards();
+    }
+    return Promise.resolve();
+  }
+
+  initTauri({ load: false });
+  if (invoke) {
+    return loadCards();
+  }
+  return Promise.resolve();
+};
+window.__lastLoadPromise = () => lastLoadPromise;
