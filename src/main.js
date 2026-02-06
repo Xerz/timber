@@ -27,6 +27,17 @@ const fallbackDesktopCard = {
   isFree: true
 };
 
+const loadingCard = {
+  productId: "loading",
+  title: "Загрузка",
+  imageUrl: "",
+  alt: "Загрузка",
+  requiredAccount: "",
+  isFree: false,
+  isLoading: true,
+  startLabel: "Загрузка"
+};
+
 retryBtn.addEventListener("click", () => {
   if (invoke) {
     loadCards();
@@ -53,18 +64,21 @@ function render(cards) {
     const alt = escapeHtml(card.alt || "");
     const required = card.requiredAccount ? `<div class=\"gameList__item-badge-required-account\">${escapeHtml(card.requiredAccount)}</div>` : "";
     const free = card.isFree ? `<div class=\"gameList__item-badge-price\">Бесплатная</div>` : "";
+    const startLabel = escapeHtml(card.startLabel || "Играть");
     const rawImageUrl = card.imageUrl || "";
     const safeImageUrl = rawImageUrl.replace(/'/g, "%27");
     const imageStyle = rawImageUrl ? ` style=\"background-image: url('${encodeURI(safeImageUrl)}')\"` : "";
     const placeholderClass = rawImageUrl ? "" : "card--placeholder";
+    const loadingClass = card.isLoading ? "is-loading" : "";
+    const loadingAttr = card.isLoading ? " data-loading=\"1\"" : "";
 
     return `
-      <div class=\"gameList__item gameList__item-thumb ivu-card ivu-card-bordered ${placeholderClass}\" data-product-id=\"${escapeHtml(card.productId)}\" data-image-url=\"${escapeHtml(rawImageUrl)}\">
+      <div class=\"gameList__item gameList__item-thumb ivu-card ivu-card-bordered ${placeholderClass} ${loadingClass}\" data-product-id=\"${escapeHtml(card.productId)}\" data-image-url=\"${escapeHtml(rawImageUrl)}\"${loadingAttr}>
         <div class=\"ivu-card-body\">
           <a href=\"#\" class=\"gameList__item-overlay\" title=\"${alt}\">${title}</a>
           <div class=\"gameList__item-image\"${imageStyle}></div>
           <div class=\"gameList__item-title\"><span>${title}</span></div>
-          <div class=\"gameList__item-start gameList__item-start_active\">Играть&nbsp;<i class=\"ivu-icon ivu-icon-md-log-in\"></i></div>
+          <div class=\"gameList__item-start gameList__item-start_active\">${startLabel}&nbsp;<i class=\"ivu-icon ivu-icon-md-log-in\"></i></div>
           <div class=\"gameList__item-badges\">${required}${free}</div>
         </div>
       </div>
@@ -82,6 +96,7 @@ function render(cards) {
     cardEl.addEventListener("click", async (event) => {
       event.preventDefault();
       const productId = cardEl.dataset.productId;
+      if (cardEl.dataset.loading === "1") return;
       if (!productId) return;
       if (cardEl.classList.contains("is-launching")) return;
       cardEl.classList.add("is-launching");
@@ -98,6 +113,14 @@ function render(cards) {
       }
     });
   });
+}
+
+function renderLoading(count = 6) {
+  const cards = Array.from({ length: count }, (_, index) => ({
+    ...loadingCard,
+    productId: `loading-${index + 1}`
+  }));
+  render(cards);
 }
 
 function setStatus(text, sub = "", showRetry = false) {
@@ -124,6 +147,7 @@ function handleStatusEvent(payload) {
 function loadCards() {
   lastLoadPromise = (async () => {
     setStatus("Загрузка…");
+    renderLoading();
     try {
       const cards = await invoke("load_cards");
       clearStatus();
@@ -183,6 +207,7 @@ const mockMode = params.get("mock") === "1";
 if (!skipAutoInit) {
   if (!initTauri()) {
     if (mockMode) {
+      renderLoading();
       fetch("/mock-data.json")
         .then(res => res.json())
         .then(render)

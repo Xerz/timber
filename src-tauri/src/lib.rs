@@ -133,9 +133,19 @@ async fn load_cards(app: AppHandle, state: State<'_, SharedState>) -> Result<Vec
         );
 
         let meta = product_map.get(&item.product_id);
-        let image_url = meta
-            .and_then(|m| m.card_picture.clone())
-            .unwrap_or_default();
+        let image_url = match meta.and_then(|m| m.card_picture.clone()) {
+            Some(url) => {
+                if should_cache_images() {
+                    match cache_image(&client, &url).await {
+                        Ok(Some(cached)) => cached,
+                        _ => url,
+                    }
+                } else {
+                    url
+                }
+            }
+            None => String::new(),
+        };
 
         let title = meta
             .and_then(|m| m.display_name.clone())
@@ -350,6 +360,15 @@ fn is_station_product_ready(item: &StationProduct) -> bool {
         Some(value) => value.eq_ignore_ascii_case("READY"),
         None => true,
     }
+}
+
+fn should_cache_images() -> bool {
+    std::env::var("DROVA_IMAGE_CACHE")
+        .map(|value| {
+            let value = value.trim().to_lowercase();
+            value == "1" || value == "true" || value == "yes" || value == "on"
+        })
+        .unwrap_or(false)
 }
 
 fn truncate_chars(value: &str, max: usize) -> String {

@@ -2,6 +2,16 @@
   background: linear-gradient(135deg, #243041, #111722);
 }
 
+.gameList__item {
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.gameList__item:hover {
+  transform: translateY(-2px);
+}
+
 .gameList__item.is-launching::after {
   content: "Запускаем…";
   position: absolute;
