@@ -172,7 +172,7 @@ test("tauri status event updates progress text", async ({ page }) => {
   await page.evaluate(() => window.__resetLauncher());
   await page.waitForFunction(() => typeof window.__emitStatus === "function");
   await page.evaluate(() => window.__emitStatus({ text: "Загружаем…", current: 1, total: 3 }));
-  await expect(page.locator("#statusSub")).toHaveText("Получено 1/3");
+  await expect(page.locator("#progressText")).toHaveText(" — Загружаем… 1/3");
 });
 
 test("tauri load_cards error shows retry and fallback", async ({ page }) => {

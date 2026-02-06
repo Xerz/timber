@@ -9,6 +9,7 @@ let listen = null;
 let started = false;
 let lastLoadPromise = null;
 let loadingActive = false;
+let progressLabel = "";
 const skipAutoInit = window.__TAURI_TEST_DISABLE_AUTO_INIT === true;
 
 function resolveTauriApi() {
@@ -57,7 +58,7 @@ function escapeHtml(value = "") {
 
 function render(cards) {
   const header = `
-    <h3 class="game-header">Предустановленные игры</h3>
+    <h3 class="game-header">Самые популярные игры<span id="progressText">${escapeHtml(progressLabel)}</span></h3>
     <div class="row-break"></div>
   `;
   const items = cards.map(card => {
@@ -126,6 +127,22 @@ function renderLoading(count = 6) {
   render(cards);
 }
 
+function setProgressLabel(label) {
+  progressLabel = label || "";
+  const el = document.getElementById("progressText");
+  if (el) {
+    el.textContent = progressLabel;
+  }
+}
+
+function formatProgressLabel(payload) {
+  const text = payload.text || "Загрузка…";
+  if (typeof payload.current === "number" && typeof payload.total === "number" && payload.total > 0) {
+    return ` — ${text} ${payload.current}/${payload.total}`;
+  }
+  return ` — ${text}`;
+}
+
 function setStatus(text, sub = "", showRetry = false) {
   statusText.textContent = text || "";
   statusSub.textContent = sub || "";
@@ -139,7 +156,10 @@ function clearStatus() {
 
 function handleStatusEvent(payload) {
   if (!payload) return;
-  if (loadingActive) return;
+  if (loadingActive) {
+    setProgressLabel(formatProgressLabel(payload));
+    return;
+  }
   const { text, current, total } = payload;
   if (typeof current === "number" && typeof total === "number" && total > 0) {
     setStatus(text || "Загрузка…", `Получено ${current}/${total}`);
@@ -152,15 +172,18 @@ function loadCards() {
   lastLoadPromise = (async () => {
     loadingActive = true;
     clearStatus();
+    setProgressLabel(" — Загрузка…");
     renderLoading();
     try {
       const cards = await invoke("load_cards");
       loadingActive = false;
       clearStatus();
+      setProgressLabel("");
       render(cards || []);
     } catch (error) {
       loadingActive = false;
       setStatus("Ошибка загрузки данных", String(error), true);
+      setProgressLabel("");
       render([fallbackDesktopCard]);
     }
   })();
@@ -214,11 +237,18 @@ const mockMode = params.get("mock") === "1";
 if (!skipAutoInit) {
   if (!initTauri()) {
     if (mockMode) {
+      setProgressLabel(" — Загрузка…");
       renderLoading();
       fetch("/mock-data.json")
         .then(res => res.json())
-        .then(render)
-        .catch(() => setStatus("Не удалось загрузить mock-data.json", "", true));
+        .then(cards => {
+          setProgressLabel("");
+          render(cards);
+        })
+        .catch(() => {
+          setProgressLabel("");
+          setStatus("Не удалось загрузить mock-data.json", "", true);
+        });
     } else {
       window.addEventListener("DOMContentLoaded", () => {
         if (!started) initTauri();
@@ -229,10 +259,17 @@ if (!skipAutoInit) {
     }
   }
 } else if (mockMode) {
+  setProgressLabel(" — Загрузка…");
   fetch("/mock-data.json")
     .then(res => res.json())
-    .then(render)
-    .catch(() => setStatus("Не удалось загрузить mock-data.json", "", true));
+    .then(cards => {
+      setProgressLabel("");
+      render(cards);
+    })
+    .catch(() => {
+      setProgressLabel("");
+      setStatus("Не удалось загрузить mock-data.json", "", true);
+    });
 }
 
 window.__setCards = render;
