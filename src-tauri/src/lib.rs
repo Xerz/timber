@@ -7,7 +7,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use url::Url;
 
 const CACHE_TTL_SECS: u64 = 24 * 60 * 60;
@@ -36,7 +36,7 @@ struct Card {
     is_free: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct StatusPayload {
     text: String,
     current: Option<u32>,
@@ -56,6 +56,7 @@ struct StationProduct {
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct ProductDetails {
+    #[allow(dead_code)]
     product_id: String,
     default_game_path: Option<String>,
     default_work_path: Option<String>,

@@ -7,9 +7,19 @@ import {
   buildCards,
   buildFallbackDesktopCard
 } from "../src/model.js";
-import stationProducts from "../fixtures/station_products.json" assert { type: "json" };
-import productsFull from "../fixtures/products_full.json" assert { type: "json" };
-import detailsDesktop from "../fixtures/product_details/pid-desktop.json" assert { type: "json" };
+import fs from "node:fs";
+import path from "node:path";
+
+const fixturesRoot = path.resolve(process.cwd(), "fixtures");
+const stationProducts = JSON.parse(
+  fs.readFileSync(path.join(fixturesRoot, "station_products.json"), "utf8")
+);
+const productsFull = JSON.parse(
+  fs.readFileSync(path.join(fixturesRoot, "products_full.json"), "utf8")
+);
+const detailsDesktop = JSON.parse(
+  fs.readFileSync(path.join(fixturesRoot, "product_details", "pid-desktop.json"), "utf8")
+);
 
 test("filterEnabledAvailable filters by enabled && available", () => {
   const result = filterEnabledAvailable(stationProducts);
