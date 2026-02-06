@@ -12,6 +12,14 @@ use url::Url;
 
 const CACHE_TTL_SECS: u64 = 24 * 60 * 60;
 
+#[cfg(debug_assertions)]
+fn log_debug(message: &str) {
+    eprintln!("[drova-launcher] {}", message);
+}
+
+#[cfg(not(debug_assertions))]
+fn log_debug(_message: &str) {}
+
 #[derive(Default)]
 struct SharedState {
     launches: Mutex<HashMap<String, LaunchParams>>,
@@ -102,7 +110,7 @@ async fn load_cards(app: AppHandle, state: State<'_, SharedState>) -> Result<Vec
 
     emit_status(&app, "Загружаем каталог игр…", None, None);
     let products_full: Vec<ProductMeta> =
-        http_get_json(&client, products_full_url(), &station.token).await?;
+        http_get_json_no_auth(&client, products_full_url()).await?;
     let product_map = build_product_map(&products_full);
 
     let desktop_ids = build_desktop_set(&enabled_products, &product_map);
@@ -142,11 +150,7 @@ async fn load_cards(app: AppHandle, state: State<'_, SharedState>) -> Result<Vec
         let description = meta
             .and_then(|m| m.description_ru.clone())
             .unwrap_or_default();
-        let alt = if description.len() > 100 {
-            description[..100].to_string()
-        } else {
-            description
-        };
+        let alt = truncate_chars(&description, 100);
 
         let required_account = meta
             .and_then(|m| m.required_account.clone())
@@ -231,15 +235,36 @@ async fn http_get_json<T: serde::de::DeserializeOwned>(
     url: String,
     token: &str,
 ) -> Result<T, String> {
+    log_debug(&format!("HTTP GET {}", url));
     let response = client
-        .get(url)
+        .get(&url)
         .header("X-Auth-Token", token)
         .send()
         .await
         .map_err(|err| err.to_string())?;
 
     if !response.status().is_success() {
-        return Err(format!("HTTP {}", response.status()));
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        log_debug(&format!("HTTP {} from {}: {}", status, url, body));
+        return Err(format!("HTTP {}", status));
+    }
+
+    response.json::<T>().await.map_err(|err| err.to_string())
+}
+
+async fn http_get_json_no_auth<T: serde::de::DeserializeOwned>(
+    client: &reqwest::Client,
+    url: String,
+) -> Result<T, String> {
+    log_debug(&format!("HTTP GET {}", url));
+    let response = client.get(&url).send().await.map_err(|err| err.to_string())?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        log_debug(&format!("HTTP {} from {}: {}", status, url, body));
+        return Err(format!("HTTP {}", status));
     }
 
     response.json::<T>().await.map_err(|err| err.to_string())
@@ -331,6 +356,10 @@ fn is_station_product_ready(item: &StationProduct) -> bool {
     }
 }
 
+fn truncate_chars(value: &str, max: usize) -> String {
+    value.chars().take(max).collect()
+}
+
 async fn cache_image(client: &reqwest::Client, url: &str) -> Result<Option<String>, String> {
     let cache_dir = std::env::temp_dir().join("drova-launcher").join("images");
 
@@ -414,6 +443,11 @@ fn get_station_info() -> Result<StationInfo, String> {
             .map_err(|_| "DROVA_STATION_UUID не задан".to_string())?;
         let token = std::env::var("DROVA_AUTH_TOKEN")
             .map_err(|_| "DROVA_AUTH_TOKEN не задан".to_string())?;
+        log_debug(&format!(
+            "Loaded station info from env: uuid={}, token_len={}",
+            uuid,
+            token.len()
+        ));
         return Ok(StationInfo { uuid, token });
     }
 }
@@ -520,6 +554,14 @@ mod tests {
         let mut missing_verified = sample_item("p1");
         missing_verified.verified = None;
         assert!(is_station_product_ready(&missing_verified));
+    }
+
+    #[test]
+    fn test_truncate_chars_unicode_safe() {
+        let text = "Оставьте позади руины московского метро";
+        let truncated = truncate_chars(text, 10);
+        assert_eq!(truncated.chars().count(), 10);
+        assert!(text.starts_with(&truncated));
     }
 
     #[test]

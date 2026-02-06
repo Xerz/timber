@@ -44,7 +44,11 @@ function escapeHtml(value = "") {
 }
 
 function render(cards) {
-  grid.innerHTML = cards.map(card => {
+  const header = `
+    <h3 class="game-header">Самые популярные игры</h3>
+    <div class="row-break"></div>
+  `;
+  const items = cards.map(card => {
     const title = escapeHtml(card.title || "");
     const alt = escapeHtml(card.alt || "");
     const required = card.requiredAccount ? `<div class=\"gameList__item-badge-required-account\">${escapeHtml(card.requiredAccount)}</div>` : "";
@@ -55,15 +59,19 @@ function render(cards) {
     const placeholderClass = rawImageUrl ? "" : "card--placeholder";
 
     return `
-      <div class=\"gameList__item ${placeholderClass}\" data-product-id=\"${escapeHtml(card.productId)}\" data-image-url=\"${escapeHtml(rawImageUrl)}\">
-        <a href=\"#\" class=\"gameList__item-overlay\" title=\"${alt}\">${title}</a>
-        <div class=\"gameList__item-image\"${imageStyle}></div>
-        <div class=\"gameList__item-title\"><span>${title}</span></div>
-        <div class=\"gameList__item-start gameList__item-start_active\">Играть <i class=\"ivu-icon ivu-icon-md-log-in\"></i></div>
-        <div class=\"gameList__item-badges\">${required}${free}</div>
+      <div class=\"gameList__item gameList__item-thumb ivu-card ivu-card-bordered ${placeholderClass}\" data-product-id=\"${escapeHtml(card.productId)}\" data-image-url=\"${escapeHtml(rawImageUrl)}\">
+        <div class=\"ivu-card-body\">
+          <a href=\"#\" class=\"gameList__item-overlay\" title=\"${alt}\">${title}</a>
+          <div class=\"gameList__item-image\"${imageStyle}></div>
+          <div class=\"gameList__item-title\"><span>${title}</span></div>
+          <div class=\"gameList__item-start gameList__item-start_active\">Играть&nbsp;<i class=\"ivu-icon ivu-icon-md-log-in\"></i></div>
+          <div class=\"gameList__item-badges\">${required}${free}</div>
+        </div>
       </div>
     `;
   }).join("");
+
+  grid.innerHTML = header + items;
 
   [...grid.querySelectorAll(".gameList__item")].forEach(cardEl => {
     const imageUrl = cardEl.dataset.imageUrl;
