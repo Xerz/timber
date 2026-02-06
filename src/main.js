@@ -8,6 +8,7 @@ let invoke = null;
 let listen = null;
 let started = false;
 let lastLoadPromise = null;
+let loadingActive = false;
 const skipAutoInit = window.__TAURI_TEST_DISABLE_AUTO_INIT === true;
 
 function resolveTauriApi() {
@@ -56,7 +57,7 @@ function escapeHtml(value = "") {
 
 function render(cards) {
   const header = `
-    <h3 class="game-header">Самые популярные игры</h3>
+    <h3 class="game-header">Предустановленные игры</h3>
     <div class="row-break"></div>
   `;
   const items = cards.map(card => {
@@ -65,6 +66,8 @@ function render(cards) {
     const required = card.requiredAccount ? `<div class=\"gameList__item-badge-required-account\">${escapeHtml(card.requiredAccount)}</div>` : "";
     const free = card.isFree ? `<div class=\"gameList__item-badge-price\">Бесплатная</div>` : "";
     const startLabel = escapeHtml(card.startLabel || "Играть");
+    const startIcon = card.isLoading ? "" : "<i class=\\\"ivu-icon ivu-icon-md-log-in\\\"></i>";
+    const startContent = startIcon ? `${startLabel}&nbsp;${startIcon}` : startLabel;
     const rawImageUrl = card.imageUrl || "";
     const safeImageUrl = rawImageUrl.replace(/'/g, "%27");
     const imageStyle = rawImageUrl ? ` style=\"background-image: url('${encodeURI(safeImageUrl)}')\"` : "";
@@ -78,7 +81,7 @@ function render(cards) {
           <a href=\"#\" class=\"gameList__item-overlay\" title=\"${alt}\">${title}</a>
           <div class=\"gameList__item-image\"${imageStyle}></div>
           <div class=\"gameList__item-title\"><span>${title}</span></div>
-          <div class=\"gameList__item-start gameList__item-start_active\">${startLabel}&nbsp;<i class=\"ivu-icon ivu-icon-md-log-in\"></i></div>
+          <div class=\"gameList__item-start gameList__item-start_active\">${startContent}</div>
           <div class=\"gameList__item-badges\">${required}${free}</div>
         </div>
       </div>
@@ -136,6 +139,7 @@ function clearStatus() {
 
 function handleStatusEvent(payload) {
   if (!payload) return;
+  if (loadingActive) return;
   const { text, current, total } = payload;
   if (typeof current === "number" && typeof total === "number" && total > 0) {
     setStatus(text || "Загрузка…", `Получено ${current}/${total}`);
@@ -146,13 +150,16 @@ function handleStatusEvent(payload) {
 
 function loadCards() {
   lastLoadPromise = (async () => {
-    setStatus("Загрузка…");
+    loadingActive = true;
+    clearStatus();
     renderLoading();
     try {
       const cards = await invoke("load_cards");
+      loadingActive = false;
       clearStatus();
       render(cards || []);
     } catch (error) {
+      loadingActive = false;
       setStatus("Ошибка загрузки данных", String(error), true);
       render([fallbackDesktopCard]);
     }
