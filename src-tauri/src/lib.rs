@@ -44,26 +44,24 @@ struct StatusPayload {
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 struct StationProduct {
+    #[serde(alias = "productId")]
     product_id: String,
+    #[serde(default)]
     enabled: bool,
-    available: bool,
+    #[serde(alias = "useDefaultDesktop")]
     use_default_desktop: Option<bool>,
-    title: Option<String>,
-}
-
-#[derive(Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-struct ProductDetails {
-    #[allow(dead_code)]
-    product_id: String,
-    default_game_path: Option<String>,
-    default_work_path: Option<String>,
-    default_args: Option<String>,
+    #[serde(alias = "gamePath")]
     game_path: Option<String>,
+    #[serde(alias = "workPath")]
     work_path: Option<String>,
+    #[serde(alias = "args")]
     args: Option<String>,
+    #[serde(alias = "title")]
+    title: Option<String>,
+    #[serde(default)]
+    verified: Option<String>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -96,7 +94,7 @@ async fn load_cards(app: AppHandle, state: State<'_, SharedState>) -> Result<Vec
         http_get_json(&client, station_products_url(&station.uuid), &station.token).await?;
     let enabled_products: Vec<StationProduct> = station_products
         .into_iter()
-        .filter(|item| item.enabled && item.available)
+        .filter(is_station_product_ready)
         .collect();
     if enabled_products.is_empty() {
         return Err("Список игр пуст".to_string());
@@ -109,24 +107,9 @@ async fn load_cards(app: AppHandle, state: State<'_, SharedState>) -> Result<Vec
 
     let desktop_ids = build_desktop_set(&enabled_products, &product_map);
 
-    emit_status(&app, "Загружаем параметры запуска…", None, None);
     let mut launch_map: HashMap<String, LaunchParams> = HashMap::new();
-    for (idx, item) in enabled_products.iter().enumerate() {
-        let current = (idx + 1) as u32;
-        let total = enabled_products.len() as u32;
-        emit_status(
-            &app,
-            "Загружаем параметры запуска…",
-            Some(current),
-            Some(total),
-        );
-        let details: ProductDetails = http_get_json(
-            &client,
-            product_details_url(&station.uuid, &item.product_id),
-            &station.token,
-        )
-        .await?;
-        launch_map.insert(item.product_id.clone(), build_launch_params(&details));
+    for item in enabled_products.iter() {
+        launch_map.insert(item.product_id.clone(), build_launch_params(item));
     }
 
     emit_status(&app, "Загружаем ресурсы…", None, None);
@@ -264,15 +247,8 @@ async fn http_get_json<T: serde::de::DeserializeOwned>(
 
 fn station_products_url(station_uuid: &str) -> String {
     format!(
-        "https://services.drova.io/server-manager/serverproduct/list4edit2/{}",
+        "https://services.drova.io/product-manager/serverproduct/list/{}",
         station_uuid
-    )
-}
-
-fn product_details_url(station_uuid: &str, product_id: &str) -> String {
-    format!(
-        "https://services.drova.io/server-manager/serverproduct/list4edit2/{}/{}",
-        station_uuid, product_id
     )
 }
 
@@ -333,27 +309,25 @@ fn is_desktop_product(item: &StationProduct, meta: Option<&ProductMeta>) -> bool
     false
 }
 
-fn build_launch_params(details: &ProductDetails) -> LaunchParams {
-    let exe_path = details
-        .game_path
-        .clone()
-        .or_else(|| details.default_game_path.clone())
-        .unwrap_or_default();
-    let work_dir = details
-        .work_path
-        .clone()
-        .or_else(|| details.default_work_path.clone())
-        .unwrap_or_default();
-    let args = details
-        .args
-        .clone()
-        .or_else(|| details.default_args.clone())
-        .unwrap_or_default();
+fn build_launch_params(item: &StationProduct) -> LaunchParams {
+    let exe_path = item.game_path.clone().unwrap_or_default();
+    let work_dir = item.work_path.clone().unwrap_or_default();
+    let args = item.args.clone().unwrap_or_default();
 
     LaunchParams {
         exe_path,
         work_dir,
         args,
+    }
+}
+
+fn is_station_product_ready(item: &StationProduct) -> bool {
+    if !item.enabled {
+        return false;
+    }
+    match item.verified.as_deref() {
+        Some(value) => value.eq_ignore_ascii_case("READY"),
+        None => true,
     }
 }
 
@@ -476,24 +450,28 @@ mod tests {
         StationProduct {
             product_id: product_id.to_string(),
             enabled: true,
-            available: true,
             use_default_desktop: None,
+            game_path: None,
+            work_path: None,
+            args: None,
+            verified: Some("READY".to_string()),
             title: None,
         }
     }
 
     #[test]
-    fn test_build_launch_params_prefers_overrides() {
-        let details = ProductDetails {
+    fn test_build_launch_params_from_station() {
+        let item = StationProduct {
             product_id: "p1".to_string(),
-            default_game_path: Some("C:\\Default.exe".to_string()),
-            default_work_path: Some("C:\\DefaultWork".to_string()),
-            default_args: Some("-default".to_string()),
+            enabled: true,
+            use_default_desktop: None,
             game_path: Some("C:\\Game.exe".to_string()),
             work_path: Some("C:\\Work".to_string()),
             args: Some("-custom".to_string()),
+            verified: Some("READY".to_string()),
+            title: None,
         };
-        let launch = build_launch_params(&details);
+        let launch = build_launch_params(&item);
         assert_eq!(launch.exe_path, "C:\\Game.exe");
         assert_eq!(launch.work_dir, "C:\\Work");
         assert_eq!(launch.args, "-custom");
@@ -527,6 +505,21 @@ mod tests {
         let mut meta = sample_meta("p1");
         meta.display_name = Some("Рабочий стол".to_string());
         assert!(is_desktop_product(&item, Some(&meta)));
+    }
+
+    #[test]
+    fn test_is_station_product_ready() {
+        let mut disabled = sample_item("p1");
+        disabled.enabled = false;
+        assert!(!is_station_product_ready(&disabled));
+
+        let mut not_ready = sample_item("p1");
+        not_ready.verified = Some("NOT_READY".to_string());
+        assert!(!is_station_product_ready(&not_ready));
+
+        let mut missing_verified = sample_item("p1");
+        missing_verified.verified = None;
+        assert!(is_station_product_ready(&missing_verified));
     }
 
     #[test]
@@ -583,16 +576,7 @@ mod tests {
         let url = station_products_url("uuid-1");
         assert_eq!(
             url,
-            "https://services.drova.io/server-manager/serverproduct/list4edit2/uuid-1"
-        );
-    }
-
-    #[test]
-    fn test_product_details_url() {
-        let url = product_details_url("uuid-1", "pid-1");
-        assert_eq!(
-            url,
-            "https://services.drova.io/server-manager/serverproduct/list4edit2/uuid-1/pid-1"
+            "https://services.drova.io/product-manager/serverproduct/list/uuid-1"
         );
     }
 

@@ -1,20 +1,24 @@
 [
   {
-    "productId": "pid-desktop",
-    "useDefaultDesktop": true,
-    "title": "Desktop",
-    "published": true,
+    "server_id": "uuid-1",
+    "product_id": "pid-desktop",
+    "game_path": "C:\\Program Files (x86)\\Steam\\Steam.exe",
+    "work_path": "C:\\Program Files (x86)\\Steam",
     "enabled": true,
-    "verified": 2,
-    "available": true
+    "use_default_desktop": true,
+    "args": "-language russian",
+    "allowed_paths": "",
+    "verified": "READY"
   },
   {
-    "productId": "pid-disabled",
-    "useDefaultDesktop": false,
-    "title": "Disabled",
-    "published": true,
+    "server_id": "uuid-1",
+    "product_id": "pid-disabled",
+    "game_path": "C:\\Program Files (x86)\\Steam\\Steam.exe",
+    "work_path": "C:\\Program Files (x86)\\Steam",
     "enabled": false,
-    "verified": 2,
-    "available": true
+    "use_default_desktop": false,
+    "args": "-language russian",
+    "allowed_paths": "",
+    "verified": "READY"
   }
 ]

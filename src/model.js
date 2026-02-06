@@ -1,5 +1,13 @@
 export function filterEnabledAvailable(items = []) {
-  return items.filter(item => item && item.enabled === true && item.available === true);
+  return items.filter(item => {
+    if (!item || item.enabled !== true) return false;
+    if (typeof item.available === "boolean") {
+      return item.available === true;
+    }
+    const verified = item.verified ?? item.verified_status ?? item.verifiedStatus;
+    if (verified == null || verified === "") return true;
+    return String(verified).toUpperCase() === "READY";
+  });
 }
 
 export function buildProductMap(products = []) {
@@ -13,15 +21,15 @@ export function buildProductMap(products = []) {
 }
 
 export function buildLaunchParams(details = {}) {
-  const exePath = details.gamePath || details.defaultGamePath || "";
-  const workDir = details.workPath || details.defaultWorkPath || "";
+  const exePath = details.gamePath || details.game_path || details.defaultGamePath || "";
+  const workDir = details.workPath || details.work_path || details.defaultWorkPath || "";
   const args = details.args || details.defaultArgs || "";
   return { exePath, workDir, args };
 }
 
 export function buildCards(enabledProducts = [], productMap = new Map()) {
   return enabledProducts.map(item => {
-    const productId = item.productId || "";
+    const productId = item.productId || item.product_id || "";
     const meta = productMap.get(productId) || {};
     const title = meta.displayName || meta.title || item.title || "Игра";
     const descriptionRu = meta.descriptionRu || "";

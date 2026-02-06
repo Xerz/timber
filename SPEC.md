@@ -8,8 +8,7 @@
 
 **Объем работ (MVP)**
 - Получение токена и UUID станции (Windows Registry, на macOS — env‑переменные для разработки).
-- Запрос списка доступных игр и фильтрация `enabled && available`.
-- Запрос параметров запуска для каждой игры.
+- Запрос списка доступных игр и фильтрация `enabled` (+ `verified == READY`, если поле есть).
 - Запрос справочника продуктов (картинки, метаданные).
 - Рендеринг плиток и интерактивность (hover, click).
 - Показ прогресса загрузки.
@@ -20,13 +19,12 @@
   - `HKLM\SOFTWARE\ITKey\Esme` ключ `last_server` -> `station_uuid`.
   - `HKLM\SOFTWARE\ITKey\Esme\servers\{station_uuid}` ключ `auth_token` -> `token`.
 - API:
-  - Список игр: `GET https://services.drova.io/server-manager/serverproduct/list4edit2/{station_uuid}`
-  - Параметры запуска: `GET https://services.drova.io/server-manager/serverproduct/list4edit2/{station_uuid}/{productId}`
+  - Список игр + параметры запуска: `GET https://services.drova.io/product-manager/serverproduct/list/{station_uuid}`
   - Каталог продуктов: `GET https://services.drova.io/product-manager/product/listfull2?limit=2000`
 - Заголовок авторизации: `X-Auth-Token: <token>`
 
 **Правила отбора игр**
-- Игра отображается, если `enabled == true` и `available == true`.
+- Игра отображается, если `enabled == true`. Если присутствует поле `verified`, то требуется `verified == READY`.
 
 **Правила отображения карточки**
 - Фоновая картинка: `cardPicture`.
@@ -43,9 +41,9 @@
   - запустить программу (кроме Desktop),
   - завершить скрипт (не дожидаясь выхода игры).
 - Используемые поля запуска:
-  - `gamePath` если задан, иначе `defaultGamePath`.
-  - `workPath` если задан, иначе `defaultWorkPath`.
-  - `args` если задан, иначе `defaultArgs`.
+  - `game_path`
+  - `work_path`
+  - `args`
 - Desktop:
   - если продукт является Desktop (`useDefaultDesktop == true` или `title == Desktop` / `displayName == Рабочий стол`) — **не** запускать exe, просто закрыть лаунчер.
 

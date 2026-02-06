@@ -9,10 +9,10 @@
 - Playwright (Chromium) для UI‑скриншотов и hover.
 
 **Unit‑тесты (JS, macOS)**
-1. Фильтрация игр `enabled && available`.
+1. Фильтрация игр `enabled` (+ `verified == READY`, если поле есть).
 2. Маппинг карточек (title, image, badges).
 3. Правила “Бесплатная”.
-4. Приоритет `gamePath/workPath/args` над дефолтами.
+4. Использование `game_path/work_path/args` из списка игр.
 
 **Интеграционные тесты (JS, macOS)**
 1. Сборка карточек из фикстур.
