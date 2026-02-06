@@ -452,3 +452,116 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    fn sample_meta(product_id: &str) -> ProductMeta {
+        ProductMeta {
+            product_id: product_id.to_string(),
+            title: None,
+            display_name: None,
+            description_ru: None,
+            card_picture: None,
+            required_account: None,
+            no_license_requred: None,
+            use_default_desktop: None,
+        }
+    }
+
+    fn sample_item(product_id: &str) -> StationProduct {
+        StationProduct {
+            product_id: product_id.to_string(),
+            enabled: true,
+            available: true,
+            use_default_desktop: None,
+            title: None,
+        }
+    }
+
+    #[test]
+    fn test_build_launch_params_prefers_overrides() {
+        let details = ProductDetails {
+            product_id: "p1".to_string(),
+            default_game_path: Some("C:\\Default.exe".to_string()),
+            default_work_path: Some("C:\\DefaultWork".to_string()),
+            default_args: Some("-default".to_string()),
+            game_path: Some("C:\\Game.exe".to_string()),
+            work_path: Some("C:\\Work".to_string()),
+            args: Some("-custom".to_string()),
+        };
+        let launch = build_launch_params(&details);
+        assert_eq!(launch.exe_path, "C:\\Game.exe");
+        assert_eq!(launch.work_dir, "C:\\Work");
+        assert_eq!(launch.args, "-custom");
+    }
+
+    #[test]
+    fn test_is_desktop_product_by_flag() {
+        let mut item = sample_item("p1");
+        item.use_default_desktop = Some(true);
+        assert!(is_desktop_product(&item, None));
+    }
+
+    #[test]
+    fn test_is_desktop_product_by_meta_flag() {
+        let item = sample_item("p1");
+        let mut meta = sample_meta("p1");
+        meta.use_default_desktop = Some(true);
+        assert!(is_desktop_product(&item, Some(&meta)));
+    }
+
+    #[test]
+    fn test_is_desktop_product_by_title() {
+        let mut item = sample_item("p1");
+        item.title = Some("Desktop".to_string());
+        assert!(is_desktop_product(&item, None));
+    }
+
+    #[test]
+    fn test_is_desktop_product_by_display_name() {
+        let item = sample_item("p1");
+        let mut meta = sample_meta("p1");
+        meta.display_name = Some("Рабочий стол".to_string());
+        assert!(is_desktop_product(&item, Some(&meta)));
+    }
+
+    #[test]
+    fn test_build_desktop_set() {
+        let mut item = sample_item("p1");
+        item.use_default_desktop = Some(true);
+        let mut map = HashMap::new();
+        map.insert("p1".to_string(), sample_meta("p1"));
+        let set = build_desktop_set(&[item], &map);
+        assert!(set.contains("p1"));
+    }
+
+    #[test]
+    fn test_cache_file_name_extension() {
+        let name = cache_file_name("https://example.com/image.jpg?x=1");
+        assert!(name.ends_with(".jpg"));
+        assert!(name.len() > 10);
+    }
+
+    #[test]
+    fn test_cache_file_name_default_extension() {
+        let name = cache_file_name("https://example.com/image");
+        assert!(name.ends_with(".img"));
+    }
+
+    #[test]
+    fn test_file_url() {
+        let url = file_url(Path::new("/tmp/test.png")).unwrap();
+        assert!(url.starts_with("file://"));
+    }
+
+    #[test]
+    fn test_is_expired() {
+        let recent = SystemTime::now() - Duration::from_secs(10);
+        let old = SystemTime::now() - Duration::from_secs(100);
+        assert!(!is_expired(recent, Duration::from_secs(60)));
+        assert!(is_expired(old, Duration::from_secs(60)));
+    }
+}

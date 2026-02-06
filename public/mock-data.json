@@ -14,5 +14,13 @@
     "alt": "Выживание, строительство, PvP",
     "requiredAccount": "Steam",
     "isFree": false
+  },
+  {
+    "productId": "broken",
+    "title": "Broken Image",
+    "imageUrl": "/missing.jpg",
+    "alt": "Проверка фолбэка",
+    "requiredAccount": "",
+    "isFree": true
   }
 ]

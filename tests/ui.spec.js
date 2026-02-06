@@ -97,3 +97,18 @@ test("click marks tile as launching", async ({ page }) => {
   await card.click();
   await expect(card).toHaveClass(/is-launching/);
 });
+
+test("broken image falls back to placeholder", async ({ page }) => {
+  await page.goto(`${baseUrl}/index.html?mock=1`);
+  const broken = page.locator('.gameList__item[data-product-id="broken"]');
+  await broken.waitFor();
+  await expect(broken).toHaveClass(/card--placeholder/, { timeout: 5000 });
+});
+
+test("status shows retry on data load failure", async ({ page }) => {
+  await page.route("**/mock-data.json", route => route.abort());
+  await page.goto(`${baseUrl}/index.html?mock=1`);
+  const status = page.locator("#status");
+  await expect(status).not.toHaveClass(/is-hidden/);
+  await expect(page.locator("#retryBtn")).toBeVisible();
+});

@@ -38,3 +38,36 @@ test("buildFallbackDesktopCard returns desktop", () => {
   assert.equal(card.productId, "desktop");
   assert.equal(card.isFree, true);
 });
+
+test("buildCards trims alt to 100 chars and maps badges", () => {
+  const longText = "a".repeat(120);
+  const enabled = [{ productId: "p1", enabled: true, available: true, title: "Fallback" }];
+  const map = buildProductMap([{
+    productId: "p1",
+    displayName: "Game Name",
+    descriptionRu: longText,
+    requiredAccount: "Steam",
+    noLicenseRequred: true,
+    cardPicture: "https://example.com/a.jpg"
+  }]);
+  const cards = buildCards(enabled, map);
+  assert.equal(cards[0].title, "Game Name");
+  assert.equal(cards[0].alt.length, 100);
+  assert.equal(cards[0].requiredAccount, "Steam");
+  assert.equal(cards[0].isFree, true);
+});
+
+test("buildLaunchParams prefers overrides", () => {
+  const details = {
+    gamePath: "C:\\\\Game.exe",
+    defaultGamePath: "C:\\\\Default.exe",
+    workPath: "C:\\\\Work",
+    defaultWorkPath: "C:\\\\DefaultWork",
+    args: "-custom",
+    defaultArgs: "-default"
+  };
+  const launch = buildLaunchParams(details);
+  assert.equal(launch.exePath, "C:\\\\Game.exe");
+  assert.equal(launch.workDir, "C:\\\\Work");
+  assert.equal(launch.args, "-custom");
+});
