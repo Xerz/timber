@@ -1,0 +1,18 @@
+[
+  {
+    "productId": "desktop",
+    "title": "Рабочий стол",
+    "imageUrl": "",
+    "alt": "Доступ ко всему почти без ограничений.",
+    "requiredAccount": "",
+    "isFree": true
+  },
+  {
+    "productId": "rust",
+    "title": "Rust",
+    "imageUrl": "https://files.drova.io/io.drova.web/images/products/card_pictures/07cd99e4-ce5c-47c8-80b9-3042c87688c1.jpg",
+    "alt": "Выживание, строительство, PvP",
+    "requiredAccount": "Steam",
+    "isFree": false
+  }
+]

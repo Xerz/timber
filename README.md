@@ -16,7 +16,8 @@
 - UI превью (без Tauri): открыть `src/index.html?mock=1` через простой сервер.
 - Тесты логики: `npm test`.
 - UI‑тесты: `npm run test:ui` (перед первым запуском: `npx playwright install`).
- - Для запуска Tauri на macOS нужны переменные окружения `DROVA_STATION_UUID` и `DROVA_AUTH_TOKEN`.
+- Для запуска Tauri на macOS нужны переменные окружения `DROVA_STATION_UUID` и `DROVA_AUTH_TOKEN`.
+- Удобно задать их через `.env` (см. `.env.example`).
 
 ## Windows рантайм
 - Установить Rust и Tauri prerequisites.

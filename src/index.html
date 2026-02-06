@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="https://drova.io/index.min.css" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Drova Launcher</title>
+    <script type="module" src="/main.js" defer></script>
+  </head>
+
+  <body>
+    <div id="app" class="app">
+      <div id="status" class="status is-hidden">
+        <div id="statusText" class="status__text">Загрузка…</div>
+        <div id="statusSub" class="status__sub"></div>
+        <button id="retryBtn" class="status__retry" type="button">Повторить</button>
+      </div>
+      <div id="grid" class="gameList"></div>
+    </div>
+  </body>
+</html>
