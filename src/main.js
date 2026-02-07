@@ -80,44 +80,47 @@ function renderServerDescription() {
 }
 
 function renderHardware(hardware) {
-  if (!hardware) return "";
+  if (!hardware) {
+    return "<div class=\"server-details__empty\">Данных о железе нет.</div>";
+  }
   const ramText = formatBytesToGb(hardware.ram_bytes) || "—";
   const cpuText = String(hardware?.processor?.version || "").trim() || "—";
   const gpu = Array.isArray(hardware.graphic) ? hardware.graphic[0] : null;
   const gpuName = String(gpu?.name || "").trim() || "—";
   const gpuRamText = formatBytesToGb(gpu?.ram_bytes);
-  const gpuRamSpan = gpuRamText ? ` <span>${escapeHtml(` / ${gpuRamText}`)}</span>` : "";
+  const gpuLine = `${gpuName}${gpuRamText ? ` / ${gpuRamText}` : ""}`;
 
   return `
-    <div class="account-column stationDetails__row stationDetails__row_hardware">
-      <div class="stationDetails__wrapper">
-        <div class="stationDetails__item ivu-row">
-          <div class="stationDetails__item-header">Hardware</div>
-        </div>
-        <span class="stationDetails__item">
-          <div class="stationDetails__item-label ivu-row">Видеокарта:</div>
-          <div class="stationDetails__item-content ivu-row">${escapeHtml(gpuName)}${gpuRamSpan}</div>
-        </span>
-        <span class="stationDetails__item">
-          <div class="stationDetails__item-label ivu-row">Оперативная память:</div>
-          <div class="stationDetails__item-content ivu-row">${escapeHtml(ramText)}</div>
-        </span>
-        <span class="stationDetails__item">
-          <div class="stationDetails__item-label ivu-row">Процессор:</div>
-          <div class="stationDetails__item-content ivu-row">${escapeHtml(cpuText)}</div>
-        </span>
-      </div>
-    </div>
+    <div class="hardware-line">${escapeHtml(gpuLine)}</div>
+    <div class="hardware-line">${escapeHtml(ramText)}</div>
+    <div class="hardware-line">${escapeHtml(cpuText)}</div>
   `;
 }
 
-function renderServerDetails() {
+function renderServerDialogs() {
   return `
-    <details class="server-details">
-      <summary class="server-details__summary">Показать описание сервера и контакты</summary>
-      <div class="server-details__body" id="serverDescription">${renderServerDescription()}</div>
-    </details>
-    <div id="serverHardware">${renderHardware(serverHardware)}</div>
+    <div class="page-actions">
+      <button class="page-action" id="openDescription" type="button">Описание сервера и контакты</button>
+      <button class="page-action" id="openHardware" type="button">Технические характеристики</button>
+    </div>
+    <div class="modal-overlay is-hidden" id="descriptionModal" data-modal>
+      <div class="modal">
+        <div class="modal__header">
+          <div class="modal__title">Описание сервера и контакты</div>
+          <button class="modal__close" type="button" data-close="descriptionModal">×</button>
+        </div>
+        <div class="modal__body" id="serverDescription">${renderServerDescription()}</div>
+      </div>
+    </div>
+    <div class="modal-overlay is-hidden" id="hardwareModal" data-modal>
+      <div class="modal">
+        <div class="modal__header">
+          <div class="modal__title">Технические характеристики</div>
+          <button class="modal__close" type="button" data-close="hardwareModal">×</button>
+        </div>
+        <div class="modal__body" id="serverHardware">${renderHardware(serverHardware)}</div>
+      </div>
+    </div>
   `;
 }
 
@@ -143,7 +146,7 @@ function render(cards) {
   const header = `
     <div class="page-header">
       <h1 class="page__title"><span id="serverTitleText">${escapeHtml(formatServerTitle(serverName))}</span><span id="progressText">${escapeHtml(progressLabel)}</span></h1>
-      ${renderServerDetails()}
+      ${renderServerDialogs()}
     </div>
     <div class="row-break"></div>
   `;
@@ -176,6 +179,29 @@ function render(cards) {
   }).join("");
 
   grid.innerHTML = header + items;
+
+  const openDescription = document.getElementById("openDescription");
+  if (openDescription) {
+    openDescription.addEventListener("click", () => openModal("descriptionModal"));
+  }
+  const openHardware = document.getElementById("openHardware");
+  if (openHardware) {
+    openHardware.addEventListener("click", () => openModal("hardwareModal"));
+  }
+
+  const modals = grid.querySelectorAll("[data-modal]");
+  modals.forEach(modal => {
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) {
+        closeModal(modal.id);
+      }
+    });
+  });
+
+  const closes = grid.querySelectorAll("[data-close]");
+  closes.forEach(btn => {
+    btn.addEventListener("click", () => closeModal(btn.dataset.close));
+  });
 
   [...grid.querySelectorAll(".gameList__item")].forEach(cardEl => {
     const imageUrl = cardEl.dataset.imageUrl;
@@ -237,6 +263,22 @@ function formatProgressLabel(payload) {
     return ` — ${text} ${payload.current}/${payload.total}`;
   }
   return ` — ${text}`;
+}
+
+function openModal(id) {
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  modal.classList.remove("is-hidden");
+  document.body.classList.add("is-modal-open");
+}
+
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  modal.classList.add("is-hidden");
+  if (document.querySelectorAll(".modal-overlay:not(.is-hidden)").length === 0) {
+    document.body.classList.remove("is-modal-open");
+  }
 }
 
 function setStatus(text, sub = "", showRetry = false) {
