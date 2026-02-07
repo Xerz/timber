@@ -61,7 +61,7 @@ function escapeHtml(value = "") {
 
 function formatServerTitle(name) {
   const trimmed = String(name || "").trim();
-  return `Добро пожаловать на сервер: ${trimmed || "…"}`;
+  return `Добро пожаловать на сервер ${trimmed || "…"}`;
 }
 
 function formatBytesToGb(bytes) {
@@ -269,6 +269,10 @@ function openModal(id) {
   const modal = document.getElementById(id);
   if (!modal) return;
   modal.classList.remove("is-hidden");
+  const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+  if (scrollbarWidth > 0) {
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
+  }
   document.body.classList.add("is-modal-open");
 }
 
@@ -278,6 +282,7 @@ function closeModal(id) {
   modal.classList.add("is-hidden");
   if (document.querySelectorAll(".modal-overlay:not(.is-hidden)").length === 0) {
     document.body.classList.remove("is-modal-open");
+    document.body.style.paddingRight = "";
   }
 }
 
