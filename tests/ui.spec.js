@@ -10,8 +10,21 @@ let server;
 let baseUrl;
 
 async function addTauriStub(page, options = {}) {
-  const { cards = [], loadError = null, launchError = null } = options;
-  await page.addInitScript(({ cards, loadError, launchError }) => {
+  const {
+    cards = [],
+    loadError = null,
+    launchError = null,
+    stationDetails = {
+      name: "Тестовый сервер",
+      description: "<p>Описание</p>",
+      hardware: {
+        ram_bytes: 34359738368,
+        processor: { version: "AMD Ryzen 5 1600 Six-Core Processor" },
+        graphic: [{ name: "NVIDIA GeForce RTX 3060", ram_bytes: 12884901888 }]
+      }
+    }
+  } = options;
+  await page.addInitScript(({ cards, loadError, launchError, stationDetails }) => {
     window.__TAURI_TEST_DISABLE_AUTO_INIT = true;
     window.__invokeCalls = [];
     window.__statusCallback = null;
@@ -27,6 +40,9 @@ async function addTauriStub(page, options = {}) {
           if (cmd === "load_cards") {
             if (loadError) return Promise.reject(new Error(loadError));
             return Promise.resolve(cards);
+          }
+          if (cmd === "load_station_details") {
+            return Promise.resolve(stationDetails);
           }
           if (cmd === "launch_game") {
             if (launchError) return Promise.reject(new Error(launchError));
@@ -44,7 +60,7 @@ async function addTauriStub(page, options = {}) {
         }
       }
     };
-  }, { cards, loadError, launchError });
+  }, { cards, loadError, launchError, stationDetails });
 }
 
 function getContentType(filePath) {

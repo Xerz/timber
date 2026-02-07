@@ -2,6 +2,32 @@
   background: #111217;
 }
 
+.page-header {
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.page__title {
+  margin-bottom: 16px;
+}
+
+.server-details {
+  margin-bottom: 16px;
+}
+
+.server-details__summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.server-details__body {
+  margin-top: 10px;
+}
+
+.server-details__empty {
+  color: #9aa4b2;
+}
+
 .gameList__item {
   position: relative;
   cursor: pointer;

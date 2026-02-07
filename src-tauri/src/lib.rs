@@ -85,6 +85,42 @@ struct ProductMeta {
     use_default_desktop: Option<bool>,
 }
 
+#[derive(Deserialize)]
+struct ServerManagerInfo {
+    name: Option<String>,
+    description: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Default, Clone)]
+#[serde(rename_all = "snake_case")]
+struct HardwareResponse {
+    ram_bytes: Option<u64>,
+    processor: Option<HardwareProcessor>,
+    #[serde(default)]
+    graphic: Vec<HardwareGraphic>,
+}
+
+#[derive(Deserialize, Serialize, Default, Clone)]
+#[serde(rename_all = "snake_case")]
+struct HardwareProcessor {
+    version: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Default, Clone)]
+#[serde(rename_all = "snake_case")]
+struct HardwareGraphic {
+    name: Option<String>,
+    ram_bytes: Option<u64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StationDetails {
+    name: String,
+    description: String,
+    hardware: HardwareResponse,
+}
+
 struct StationInfo {
     uuid: String,
     token: String,
@@ -186,6 +222,31 @@ async fn load_cards(app: AppHandle, state: State<'_, SharedState>) -> Result<Vec
 }
 
 #[tauri::command]
+async fn load_station_details() -> Result<StationDetails, String> {
+    let client = reqwest::Client::new();
+    let station = get_station_info()?;
+    let info: ServerManagerInfo =
+        http_get_json_no_auth(&client, station_info_url(&station.uuid)).await?;
+    let hardware = match http_get_json_no_auth::<HardwareResponse>(
+        &client,
+        station_hardware_url(&station.uuid),
+    )
+    .await
+    {
+        Ok(payload) => payload,
+        Err(err) => {
+            log_debug(&format!("Failed to load hardware info: {}", err));
+            HardwareResponse::default()
+        }
+    };
+    Ok(StationDetails {
+        name: info.name.unwrap_or_default(),
+        description: info.description.unwrap_or_default(),
+        hardware,
+    })
+}
+
+#[tauri::command]
 fn launch_game(app: AppHandle, state: State<'_, SharedState>, product_id: String) -> Result<(), String> {
     let desktop_ids = state.desktop_ids.lock().map_err(|_| "State locked")?;
     if desktop_ids.contains(&product_id) || product_id == "desktop" {
@@ -279,6 +340,20 @@ async fn http_get_json_no_auth<T: serde::de::DeserializeOwned>(
 fn station_products_url(station_uuid: &str) -> String {
     format!(
         "https://services.drova.io/product-manager/serverproduct/list/{}",
+        station_uuid
+    )
+}
+
+fn station_info_url(station_uuid: &str) -> String {
+    format!(
+        "https://services.drova.io/server-manager/servers/public/{}",
+        station_uuid
+    )
+}
+
+fn station_hardware_url(station_uuid: &str) -> String {
+    format!(
+        "https://services.drova.io/server-manager/hardware/list/{}",
         station_uuid
     )
 }
@@ -472,7 +547,11 @@ pub fn run() {
     tauri::Builder::default()
         .manage(SharedState::default())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![load_cards, launch_game])
+        .invoke_handler(tauri::generate_handler![
+            load_cards,
+            load_station_details,
+            launch_game
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -634,6 +713,24 @@ mod tests {
         assert_eq!(
             url,
             "https://services.drova.io/product-manager/serverproduct/list/uuid-1"
+        );
+    }
+
+    #[test]
+    fn test_station_info_url() {
+        let url = station_info_url("uuid-1");
+        assert_eq!(
+            url,
+            "https://services.drova.io/server-manager/servers/uuid-1"
+        );
+    }
+
+    #[test]
+    fn test_station_hardware_url() {
+        let url = station_hardware_url("uuid-1");
+        assert_eq!(
+            url,
+            "https://services.drova.io/server-manager/hardware/list/uuid-1"
         );
     }
 

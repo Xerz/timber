@@ -10,6 +10,9 @@ let started = false;
 let lastLoadPromise = null;
 let loadingActive = false;
 let progressLabel = "";
+let serverName = "";
+let serverDescription = "";
+let serverHardware = null;
 const skipAutoInit = window.__TAURI_TEST_DISABLE_AUTO_INIT === true;
 
 function resolveTauriApi() {
@@ -56,9 +59,92 @@ function escapeHtml(value = "") {
     .replace(/"/g, "&quot;");
 }
 
+function formatServerTitle(name) {
+  const trimmed = String(name || "").trim();
+  return `Добро пожаловать на сервер: ${trimmed || "…"}`;
+}
+
+function formatBytesToGb(bytes) {
+  if (typeof bytes !== "number" || !Number.isFinite(bytes)) return "";
+  const gb = bytes / (1024 ** 3);
+  const rounded = Math.round(gb);
+  return `${rounded}GB`;
+}
+
+function renderServerDescription() {
+  const description = String(serverDescription || "").trim();
+  if (!description) {
+    return "<div class=\"server-details__empty\">Описание не указано.</div>";
+  }
+  return description;
+}
+
+function renderHardware(hardware) {
+  if (!hardware) return "";
+  const ramText = formatBytesToGb(hardware.ram_bytes) || "—";
+  const cpuText = String(hardware?.processor?.version || "").trim() || "—";
+  const gpu = Array.isArray(hardware.graphic) ? hardware.graphic[0] : null;
+  const gpuName = String(gpu?.name || "").trim() || "—";
+  const gpuRamText = formatBytesToGb(gpu?.ram_bytes);
+  const gpuRamSpan = gpuRamText ? ` <span>${escapeHtml(` / ${gpuRamText}`)}</span>` : "";
+
+  return `
+    <div class="account-column stationDetails__row stationDetails__row_hardware">
+      <div class="stationDetails__wrapper">
+        <div class="stationDetails__item ivu-row">
+          <div class="stationDetails__item-header">Hardware</div>
+        </div>
+        <span class="stationDetails__item">
+          <div class="stationDetails__item-label ivu-row">Видеокарта:</div>
+          <div class="stationDetails__item-content ivu-row">${escapeHtml(gpuName)}${gpuRamSpan}</div>
+        </span>
+        <span class="stationDetails__item">
+          <div class="stationDetails__item-label ivu-row">Оперативная память:</div>
+          <div class="stationDetails__item-content ivu-row">${escapeHtml(ramText)}</div>
+        </span>
+        <span class="stationDetails__item">
+          <div class="stationDetails__item-label ivu-row">Процессор:</div>
+          <div class="stationDetails__item-content ivu-row">${escapeHtml(cpuText)}</div>
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+function renderServerDetails() {
+  return `
+    <details class="server-details">
+      <summary class="server-details__summary">Показать описание сервера и контакты</summary>
+      <div class="server-details__body" id="serverDescription">${renderServerDescription()}</div>
+    </details>
+    <div id="serverHardware">${renderHardware(serverHardware)}</div>
+  `;
+}
+
+function setStationDetails(details = {}) {
+  serverName = String(details.name || "").trim();
+  serverDescription = String(details.description || "");
+  serverHardware = details.hardware || null;
+  const el = document.getElementById("serverTitleText");
+  if (el) {
+    el.textContent = formatServerTitle(serverName);
+  }
+  const descriptionEl = document.getElementById("serverDescription");
+  if (descriptionEl) {
+    descriptionEl.innerHTML = renderServerDescription();
+  }
+  const hardwareEl = document.getElementById("serverHardware");
+  if (hardwareEl) {
+    hardwareEl.innerHTML = renderHardware(serverHardware);
+  }
+}
+
 function render(cards) {
   const header = `
-    <h3 class="game-header">Самые популярные игры<span id="progressText">${escapeHtml(progressLabel)}</span></h3>
+    <div class="page-header">
+      <h1 class="page__title"><span id="serverTitleText">${escapeHtml(formatServerTitle(serverName))}</span><span id="progressText">${escapeHtml(progressLabel)}</span></h1>
+      ${renderServerDetails()}
+    </div>
     <div class="row-break"></div>
   `;
   const items = cards.map(card => {
@@ -135,6 +221,16 @@ function setProgressLabel(label) {
   }
 }
 
+async function loadStationDetails() {
+  if (!invoke) return;
+  try {
+    const details = await invoke("load_station_details");
+    setStationDetails(details);
+  } catch (error) {
+    // Ignore station details errors to keep the launcher usable.
+  }
+}
+
 function formatProgressLabel(payload) {
   const text = payload.text || "Загрузка…";
   if (typeof payload.current === "number" && typeof payload.total === "number" && payload.total > 0) {
@@ -170,6 +266,7 @@ function handleStatusEvent(payload) {
 
 function loadCards() {
   lastLoadPromise = (async () => {
+    loadStationDetails();
     loadingActive = true;
     clearStatus();
     setProgressLabel(" — Загрузка…");
