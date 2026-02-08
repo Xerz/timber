@@ -286,6 +286,10 @@ fn launch_game(app: AppHandle, state: State<'_, SharedState>, product_id: String
         ));
         return Ok(());
     }
+
+    if let Some(uri) = epic_uri_from_args(&parsed_args) {
+        return open_epic_uri(uri);
+    }
     command.spawn().map_err(|err| err.to_string())?;
     Ok(())
 }
@@ -485,6 +489,30 @@ fn unwrap_outer_quotes(value: &str) -> &str {
         return &value[1..value.len() - 1];
     }
     value
+}
+
+fn epic_uri_from_args(args: &[String]) -> Option<&str> {
+    args.first()
+        .map(|value| value.as_str())
+        .filter(|value| value.starts_with("com.epicgames.launcher://"))
+}
+
+#[cfg(target_os = "windows")]
+fn open_epic_uri(uri: &str) -> Result<(), String> {
+    Command::new("explorer")
+        .arg(uri)
+        .spawn()
+        .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn open_epic_uri(uri: &str) -> Result<(), String> {
+    Command::new("xdg-open")
+        .arg(uri)
+        .spawn()
+        .map_err(|err| err.to_string())?;
+    Ok(())
 }
 
 async fn cache_image(client: &reqwest::Client, url: &str) -> Result<Option<String>, String> {
