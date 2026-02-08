@@ -271,10 +271,20 @@ fn launch_game(app: AppHandle, state: State<'_, SharedState>, product_id: String
     if !launch.work_dir.is_empty() {
         command.current_dir(&launch.work_dir);
     }
+    let mut parsed_args: Vec<String> = Vec::new();
     if !launch.args.is_empty() {
-        if let Ok(args) = split(&launch.args) {
-            command.args(args);
+        parsed_args = parse_launch_args(&launch.args);
+        if !parsed_args.is_empty() {
+            command.args(&parsed_args);
         }
+    }
+
+    if cfg!(debug_assertions) {
+        log_debug(&format!(
+            "Debug launch only: exe='{}' work_dir='{}' raw_args='{}' parsed_args={:?}",
+            launch.exe_path, launch.work_dir, launch.args, parsed_args
+        ));
+        return Ok(());
     }
     command.spawn().map_err(|err| err.to_string())?;
     Ok(())
@@ -442,6 +452,39 @@ fn should_cache_images() -> bool {
 
 fn truncate_chars(value: &str, max: usize) -> String {
     value.chars().take(max).collect()
+}
+
+fn parse_launch_args(raw: &str) -> Vec<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+
+    let unwrapped = unwrap_outer_quotes(trimmed);
+    match split(unwrapped) {
+        Ok(args) => args,
+        Err(err) => {
+            // If the args are badly quoted, don't drop them entirely.
+            log_debug(&format!(
+                "Failed to parse args '{}': {}. Passing as single argument.",
+                raw, err
+            ));
+            vec![unwrapped.to_string()]
+        }
+    }
+}
+
+fn unwrap_outer_quotes(value: &str) -> &str {
+    let bytes = value.as_bytes();
+    if bytes.len() < 2 {
+        return value;
+    }
+    let first = bytes[0];
+    let last = bytes[bytes.len() - 1];
+    if (first == b'"' && last == b'"') || (first == b'\'' && last == b'\'') {
+        return &value[1..value.len() - 1];
+    }
+    value
 }
 
 async fn cache_image(client: &reqwest::Client, url: &str) -> Result<Option<String>, String> {
