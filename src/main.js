@@ -5,6 +5,10 @@ const statusSub = document.getElementById("statusSub");
 const retryBtn = document.getElementById("retryBtn");
 const statusClose = document.getElementById("statusClose");
 
+document.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+});
+
 let invoke = null;
 let listen = null;
 let started = false;
