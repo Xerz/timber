@@ -7,6 +7,7 @@ use std::process::Command;
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
 const CACHE_TTL_SECS: u64 = 24 * 60 * 60;
@@ -280,9 +281,22 @@ fn launch_game(app: AppHandle, state: State<'_, SharedState>, product_id: String
             "Debug launch only: exe='{}' work_dir='{}' raw_args='{}' normalized_args={:?}",
             launch.exe_path, launch.work_dir, launch.args, normalized_args
         ));
+        if let Some(arg) = normalized_args.as_deref() {
+            if is_epic_uri(arg) {
+                log_debug(&format!("Would open epic uri: {}", arg));
+            }
+        }
         return Ok(());
     }
 
+    if let Some(arg) = normalized_args.as_deref() {
+        if is_epic_uri(arg) {
+            return app
+                .opener()
+                .open_url(arg, None::<&str>)
+                .map_err(|err: tauri_plugin_opener::Error| err.to_string());
+        }
+    }
     command.spawn().map_err(|err| err.to_string())?;
     Ok(())
 }
@@ -471,6 +485,10 @@ fn unwrap_outer_quotes(value: &str) -> &str {
         return &value[1..value.len() - 1];
     }
     value
+}
+
+fn is_epic_uri(value: &str) -> bool {
+    value.starts_with("com.epicgames.launcher://")
 }
 
 async fn cache_image(client: &reqwest::Client, url: &str) -> Result<Option<String>, String> {
