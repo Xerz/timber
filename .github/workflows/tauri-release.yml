@@ -12,6 +12,8 @@ jobs:
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -38,6 +40,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          github-token: ${{ github.token }}
           tagName: ${{ github.ref_name }}
           releaseName: "Drova Launcher v__VERSION__"
           releaseBody: "Automated release"
