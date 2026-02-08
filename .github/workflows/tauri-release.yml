@@ -40,10 +40,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          github-token: ${{ github.token }}
           tagName: ${{ github.ref_name }}
           releaseName: "Drova Launcher v__VERSION__"
           releaseBody: "Automated release"
           releaseDraft: false
           prerelease: false
           args: --verbose
+
+      - name: Create portable zip
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $exePath = "src-tauri/target/release/drova-launcher.exe"
+          if (!(Test-Path $exePath)) { throw "Missing $exePath" }
+          $zipName = "drova-launcher_${version}_x64.zip"
+          Compress-Archive -Path $exePath -DestinationPath $zipName -Force
+
+      - name: Upload portable zip
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: drova-launcher_*.zip

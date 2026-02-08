@@ -11,10 +11,17 @@
 
   <body class="theme_foxexeDark page_games">
     <div id="app" class="app catalog">
-      <div id="status" class="status is-hidden">
-        <div id="statusText" class="status__text">Загрузка…</div>
-        <div id="statusSub" class="status__sub"></div>
-        <button id="retryBtn" class="status__retry" type="button">Повторить</button>
+      <div id="status" class="modal-overlay is-hidden status-modal" data-modal>
+        <div class="modal">
+          <div class="modal__header">
+            <div id="statusText" class="modal__title">Загрузка…</div>
+            <button id="statusClose" class="modal__close" type="button">×</button>
+          </div>
+          <div class="modal__body">
+            <div id="statusSub" class="status__sub"></div>
+            <button id="retryBtn" class="page-action status__retry" type="button">Повторить</button>
+          </div>
+        </div>
       </div>
       <div class="catalog__content">
         <div id="grid" class="ivu-row ivu-row-flex"></div>

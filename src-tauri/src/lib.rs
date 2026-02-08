@@ -11,6 +11,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use url::Url;
 
 const CACHE_TTL_SECS: u64 = 24 * 60 * 60;
+const DESKTOP_PRODUCT_ID: &str = "9fd0eb43-b2bb-4ce3-93b8-9df63f209098";
 
 #[cfg(debug_assertions)]
 fn log_debug(message: &str) {
@@ -42,6 +43,7 @@ struct Card {
     alt: String,
     required_account: String,
     is_free: bool,
+    is_desktop: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -200,6 +202,7 @@ async fn load_cards(app: AppHandle, state: State<'_, SharedState>) -> Result<Vec
         let is_free = meta
             .and_then(|m| m.no_license_requred)
             .unwrap_or(false);
+        let is_desktop = is_desktop_product(item, meta);
 
         cards.push(Card {
             product_id: item.product_id.clone(),
@@ -208,6 +211,7 @@ async fn load_cards(app: AppHandle, state: State<'_, SharedState>) -> Result<Vec
             alt,
             required_account,
             is_free,
+            is_desktop,
         });
     }
 
@@ -263,8 +267,6 @@ fn launch_game(app: AppHandle, state: State<'_, SharedState>, product_id: String
         return Err("Пустой путь запуска".to_string());
     }
 
-    hide_window(&app);
-
     let mut command = Command::new(&launch.exe_path);
     if !launch.work_dir.is_empty() {
         command.current_dir(&launch.work_dir);
@@ -275,8 +277,6 @@ fn launch_game(app: AppHandle, state: State<'_, SharedState>, product_id: String
         }
     }
     command.spawn().map_err(|err| err.to_string())?;
-
-    app.exit(0);
     Ok(())
 }
 
@@ -385,13 +385,7 @@ fn build_desktop_set(
 }
 
 fn is_desktop_product(item: &StationProduct, meta: Option<&ProductMeta>) -> bool {
-    if item.use_default_desktop.unwrap_or(false) {
-        return true;
-    }
-    if meta
-        .and_then(|m| m.use_default_desktop)
-        .unwrap_or(false)
-    {
+    if item.product_id == DESKTOP_PRODUCT_ID {
         return true;
     }
 
@@ -606,18 +600,18 @@ mod tests {
     }
 
     #[test]
-    fn test_is_desktop_product_by_flag() {
+    fn test_is_desktop_product_ignores_use_default_desktop() {
         let mut item = sample_item("p1");
         item.use_default_desktop = Some(true);
-        assert!(is_desktop_product(&item, None));
+        let mut meta = sample_meta("p1");
+        meta.use_default_desktop = Some(true);
+        assert!(!is_desktop_product(&item, Some(&meta)));
     }
 
     #[test]
-    fn test_is_desktop_product_by_meta_flag() {
-        let item = sample_item("p1");
-        let mut meta = sample_meta("p1");
-        meta.use_default_desktop = Some(true);
-        assert!(is_desktop_product(&item, Some(&meta)));
+    fn test_is_desktop_product_by_id() {
+        let item = sample_item(DESKTOP_PRODUCT_ID);
+        assert!(is_desktop_product(&item, None));
     }
 
     #[test]

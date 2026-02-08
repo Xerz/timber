@@ -3,6 +3,7 @@ const statusEl = document.getElementById("status");
 const statusText = document.getElementById("statusText");
 const statusSub = document.getElementById("statusSub");
 const retryBtn = document.getElementById("retryBtn");
+const statusClose = document.getElementById("statusClose");
 
 let invoke = null;
 let listen = null;
@@ -13,6 +14,7 @@ let progressLabel = "";
 let serverName = "";
 let serverDescription = "";
 let serverHardware = null;
+let activeLaunchCard = null;
 const skipAutoInit = window.__TAURI_TEST_DISABLE_AUTO_INIT === true;
 
 function resolveTauriApi() {
@@ -29,7 +31,8 @@ const fallbackDesktopCard = {
   imageUrl: "",
   alt: "Доступ ко всему почти без ограничений.",
   requiredAccount: "",
-  isFree: true
+  isFree: true,
+  isDesktop: true
 };
 
 const loadingCard = {
@@ -51,6 +54,16 @@ retryBtn.addEventListener("click", () => {
   }
 });
 
+if (statusClose) {
+  statusClose.addEventListener("click", () => clearStatus());
+}
+
+statusEl.addEventListener("click", (event) => {
+  if (event.target === statusEl) {
+    clearStatus();
+  }
+});
+
 function escapeHtml(value = "") {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -61,7 +74,7 @@ function escapeHtml(value = "") {
 
 function formatServerTitle(name) {
   const trimmed = String(name || "").trim();
-  return `Добро пожаловать на сервер ${trimmed || "…"}`;
+  return `Добро пожаловать на сервер: ${trimmed || "…"}`;
 }
 
 function formatBytesToGb(bytes) {
@@ -148,6 +161,7 @@ function render(cards) {
       <h1 class="page__title"><span id="serverTitleText">${escapeHtml(formatServerTitle(serverName))}</span><span id="progressText">${escapeHtml(progressLabel)}</span></h1>
       ${renderServerDialogs()}
     </div>
+    <div class="launch-overlay is-hidden" id="launchOverlay"></div>
     <div class="row-break"></div>
   `;
   const items = cards.map(card => {
@@ -155,6 +169,7 @@ function render(cards) {
     const alt = escapeHtml(card.alt || "");
     const required = card.requiredAccount ? `<div class=\"gameList__item-badge-required-account\">${escapeHtml(card.requiredAccount)}</div>` : "";
     const free = card.isFree ? `<div class=\"gameList__item-badge-price\">Бесплатная</div>` : "";
+    const isDesktop = card.isDesktop === true;
     const startLabel = escapeHtml(card.startLabel || "Играть");
     const startIcon = card.isLoading ? "" : "<i class=\\\"ivu-icon ivu-icon-md-log-in\\\"></i>";
     const startContent = startIcon ? `${startLabel}&nbsp;${startIcon}` : startLabel;
@@ -166,7 +181,7 @@ function render(cards) {
     const loadingAttr = card.isLoading ? " data-loading=\"1\"" : "";
 
     return `
-      <div class=\"gameList__item gameList__item-thumb ivu-card ivu-card-bordered ${placeholderClass} ${loadingClass}\" data-product-id=\"${escapeHtml(card.productId)}\" data-image-url=\"${escapeHtml(rawImageUrl)}\"${loadingAttr}>
+      <div class=\"gameList__item gameList__item-thumb ivu-card ivu-card-bordered ${placeholderClass} ${loadingClass}\" data-product-id=\"${escapeHtml(card.productId)}\" data-image-url=\"${escapeHtml(rawImageUrl)}\" data-is-desktop=\"${isDesktop ? "1" : "0"}\"${loadingAttr}>
         <div class=\"ivu-card-body\">
           <a href=\"#\" class=\"gameList__item-overlay\" title=\"${alt}\">${title}</a>
           <div class=\"gameList__item-image\"${imageStyle}></div>
@@ -203,6 +218,11 @@ function render(cards) {
     btn.addEventListener("click", () => closeModal(btn.dataset.close));
   });
 
+  const launchOverlay = document.getElementById("launchOverlay");
+  if (launchOverlay) {
+    launchOverlay.addEventListener("click", () => hideLaunchOverlay(false));
+  }
+
   [...grid.querySelectorAll(".gameList__item")].forEach(cardEl => {
     const imageUrl = cardEl.dataset.imageUrl;
     if (imageUrl) {
@@ -212,19 +232,28 @@ function render(cards) {
     cardEl.addEventListener("click", async (event) => {
       event.preventDefault();
       const productId = cardEl.dataset.productId;
+      const isDesktop = cardEl.dataset.isDesktop === "1";
       if (cardEl.dataset.loading === "1") return;
       if (!productId) return;
       if (cardEl.classList.contains("is-launching")) return;
       cardEl.classList.add("is-launching");
+      activeLaunchCard = cardEl;
       if (!invoke) {
         setStatus("Запуск доступен только в приложении", "", false);
         setTimeout(() => cardEl.classList.remove("is-launching"), 800);
         return;
       }
+      if (!isDesktop) {
+        showLaunchOverlay(5000);
+      }
       try {
         await withTimeout(invoke("launch_game", { productId }), 10_000, "Таймаут запуска");
+        if (isDesktop) {
+          activeLaunchCard = null;
+        }
       } catch (error) {
         cardEl.classList.remove("is-launching");
+        activeLaunchCard = null;
         setStatus("Ошибка запуска", String(error), false);
       }
     });
@@ -244,6 +273,27 @@ function setProgressLabel(label) {
   const el = document.getElementById("progressText");
   if (el) {
     el.textContent = progressLabel;
+  }
+}
+
+function showLaunchOverlay(minDurationMs = 5000) {
+  const overlay = document.getElementById("launchOverlay");
+  if (!overlay) return;
+  overlay.dataset.canDismiss = "0";
+  overlay.classList.remove("is-hidden");
+  setTimeout(() => {
+    overlay.dataset.canDismiss = "1";
+  }, minDurationMs);
+}
+
+function hideLaunchOverlay(force = false) {
+  const overlay = document.getElementById("launchOverlay");
+  if (!overlay) return;
+  if (!force && overlay.dataset.canDismiss !== "1") return;
+  overlay.classList.add("is-hidden");
+  if (activeLaunchCard) {
+    activeLaunchCard.classList.remove("is-launching");
+    activeLaunchCard = null;
   }
 }
 
@@ -290,11 +340,11 @@ function setStatus(text, sub = "", showRetry = false) {
   statusText.textContent = text || "";
   statusSub.textContent = sub || "";
   retryBtn.style.display = showRetry ? "inline-flex" : "none";
-  statusEl.classList.remove("is-hidden");
+  openModal("status");
 }
 
 function clearStatus() {
-  statusEl.classList.add("is-hidden");
+  closeModal("status");
 }
 
 function handleStatusEvent(payload) {
