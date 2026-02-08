@@ -165,7 +165,9 @@ function render(cards) {
       <h1 class="page__title"><span id="serverTitleText">${escapeHtml(formatServerTitle(serverName))}</span><span id="progressText">${escapeHtml(progressLabel)}</span></h1>
       ${renderServerDialogs()}
     </div>
-    <div class="launch-overlay is-hidden" id="launchOverlay"></div>
+    <div class="launch-overlay is-hidden" id="launchOverlay">
+      <div class="launch-overlay__text">Нажмите в любом месте для возврата к списку игр</div>
+    </div>
     <div class="row-break"></div>
   `;
   const items = cards.map(card => {

@@ -94,6 +94,27 @@
   background: rgba(5, 8, 12, 0.9);
   z-index: 60;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.launch-overlay__text {
+  max-width: 560px;
+  padding: 0 24px;
+  color: #f1f3f6;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.launch-overlay[data-can-dismiss="1"] .launch-overlay__text {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .hardware-line {

@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use shell_words::split;
 use sha1::{Digest, Sha1};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -271,25 +270,19 @@ fn launch_game(app: AppHandle, state: State<'_, SharedState>, product_id: String
     if !launch.work_dir.is_empty() {
         command.current_dir(&launch.work_dir);
     }
-    let mut parsed_args: Vec<String> = Vec::new();
-    if !launch.args.is_empty() {
-        parsed_args = parse_launch_args(&launch.args);
-        if !parsed_args.is_empty() {
-            command.args(&parsed_args);
-        }
+    let normalized_args = normalize_launch_args(&launch.args);
+    if let Some(arg) = normalized_args.as_ref() {
+        command.arg(arg);
     }
 
     if cfg!(debug_assertions) {
         log_debug(&format!(
-            "Debug launch only: exe='{}' work_dir='{}' raw_args='{}' parsed_args={:?}",
-            launch.exe_path, launch.work_dir, launch.args, parsed_args
+            "Debug launch only: exe='{}' work_dir='{}' raw_args='{}' normalized_args={:?}",
+            launch.exe_path, launch.work_dir, launch.args, normalized_args
         ));
         return Ok(());
     }
 
-    if let Some(uri) = epic_uri_from_args(&parsed_args) {
-        return open_epic_uri(uri);
-    }
     command.spawn().map_err(|err| err.to_string())?;
     Ok(())
 }
@@ -458,24 +451,13 @@ fn truncate_chars(value: &str, max: usize) -> String {
     value.chars().take(max).collect()
 }
 
-fn parse_launch_args(raw: &str) -> Vec<String> {
+fn normalize_launch_args(raw: &str) -> Option<String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
-        return Vec::new();
+        return None;
     }
 
-    let unwrapped = unwrap_outer_quotes(trimmed);
-    match split(unwrapped) {
-        Ok(args) => args,
-        Err(err) => {
-            // If the args are badly quoted, don't drop them entirely.
-            log_debug(&format!(
-                "Failed to parse args '{}': {}. Passing as single argument.",
-                raw, err
-            ));
-            vec![unwrapped.to_string()]
-        }
-    }
+    Some(unwrap_outer_quotes(trimmed).to_string())
 }
 
 fn unwrap_outer_quotes(value: &str) -> &str {
@@ -489,30 +471,6 @@ fn unwrap_outer_quotes(value: &str) -> &str {
         return &value[1..value.len() - 1];
     }
     value
-}
-
-fn epic_uri_from_args(args: &[String]) -> Option<&str> {
-    args.first()
-        .map(|value| value.as_str())
-        .filter(|value| value.starts_with("com.epicgames.launcher://"))
-}
-
-#[cfg(target_os = "windows")]
-fn open_epic_uri(uri: &str) -> Result<(), String> {
-    Command::new("explorer")
-        .arg(uri)
-        .spawn()
-        .map_err(|err| err.to_string())?;
-    Ok(())
-}
-
-#[cfg(not(target_os = "windows"))]
-fn open_epic_uri(uri: &str) -> Result<(), String> {
-    Command::new("xdg-open")
-        .arg(uri)
-        .spawn()
-        .map_err(|err| err.to_string())?;
-    Ok(())
 }
 
 async fn cache_image(client: &reqwest::Client, url: &str) -> Result<Option<String>, String> {
