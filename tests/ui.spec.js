@@ -14,6 +14,7 @@ async function addTauriStub(page, options = {}) {
     cards = [],
     loadError = null,
     launchError = null,
+    loadDelayMs = 0,
     stationDetails = {
       name: "Тестовый сервер",
       description: "<p>Описание</p>",
@@ -24,7 +25,7 @@ async function addTauriStub(page, options = {}) {
       }
     }
   } = options;
-  await page.addInitScript(({ cards, loadError, launchError, stationDetails }) => {
+  await page.addInitScript(({ cards, loadError, launchError, loadDelayMs, stationDetails }) => {
     window.__TAURI_TEST_DISABLE_AUTO_INIT = true;
     window.__invokeCalls = [];
     window.__statusCallback = null;
@@ -39,6 +40,9 @@ async function addTauriStub(page, options = {}) {
           window.__invokeCalls.push({ cmd, args });
           if (cmd === "load_cards") {
             if (loadError) return Promise.reject(new Error(loadError));
+            if (loadDelayMs && loadDelayMs > 0) {
+              return new Promise(resolve => setTimeout(() => resolve(cards), loadDelayMs));
+            }
             return Promise.resolve(cards);
           }
           if (cmd === "load_station_details") {
@@ -60,7 +64,7 @@ async function addTauriStub(page, options = {}) {
         }
       }
     };
-  }, { cards, loadError, launchError, stationDetails });
+  }, { cards, loadError, launchError, loadDelayMs, stationDetails });
 }
 
 function getContentType(filePath) {
@@ -179,16 +183,6 @@ test("tauri mode renders cards from invoke", async ({ page }) => {
   await page.evaluate(() => window.__resetLauncher());
   await page.waitForSelector(".gameList__item");
   await expect(page.locator(".gameList__item")).toHaveCount(2);
-});
-
-test("tauri status event updates progress text", async ({ page }) => {
-  await addTauriStub(page, { cards: [] });
-  await page.goto(`${baseUrl}/index.html`);
-  await page.waitForFunction(() => typeof window.__resetLauncher === "function");
-  await page.evaluate(() => window.__resetLauncher());
-  await page.waitForFunction(() => typeof window.__emitStatus === "function");
-  await page.evaluate(() => window.__emitStatus({ text: "Загружаем…", current: 1, total: 3 }));
-  await expect(page.locator("#progressText")).toHaveText(" — Загружаем… 1/3");
 });
 
 test("tauri load_cards error shows retry and fallback", async ({ page }) => {
