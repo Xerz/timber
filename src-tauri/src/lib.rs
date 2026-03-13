@@ -254,8 +254,7 @@ async fn load_station_details() -> Result<StationDetails, String> {
 fn launch_game(app: AppHandle, state: State<'_, SharedState>, product_id: String) -> Result<(), String> {
     let desktop_ids = state.desktop_ids.lock().map_err(|_| "State locked")?;
     if desktop_ids.contains(&product_id) || product_id == "desktop" {
-        hide_window(&app);
-        app.exit(0);
+        background_window(&app)?;
         return Ok(());
     }
 
@@ -301,10 +300,22 @@ fn launch_game(app: AppHandle, state: State<'_, SharedState>, product_id: String
     Ok(())
 }
 
-fn hide_window(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.hide();
+#[tauri::command]
+fn open_external_url(app: AppHandle, url: String) -> Result<(), String> {
+    if !is_http_url(&url) {
+        return Err("Поддерживаются только http/https ссылки".to_string());
     }
+
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|err: tauri_plugin_opener::Error| err.to_string())
+}
+
+fn background_window(app: &AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.minimize().map_err(|err| err.to_string())?;
+    }
+    Ok(())
 }
 
 fn emit_status(app: &AppHandle, text: &str, current: Option<u32>, total: Option<u32>) {
@@ -491,6 +502,12 @@ fn is_epic_uri(value: &str) -> bool {
     value.starts_with("com.epicgames.launcher://")
 }
 
+fn is_http_url(value: &str) -> bool {
+    Url::parse(value)
+        .map(|url| matches!(url.scheme(), "http" | "https"))
+        .unwrap_or(false)
+}
+
 async fn cache_image(client: &reqwest::Client, url: &str) -> Result<Option<String>, String> {
     let cache_dir = std::env::temp_dir().join("drova-launcher").join("images");
 
@@ -591,7 +608,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_cards,
             load_station_details,
-            launch_game
+            launch_game,
+            open_external_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -701,10 +719,11 @@ mod tests {
 
     #[test]
     fn test_build_desktop_set() {
-        let mut item = sample_item("p1");
-        item.use_default_desktop = Some(true);
+        let item = sample_item("p1");
+        let mut meta = sample_meta("p1");
+        meta.display_name = Some("Рабочий стол".to_string());
         let mut map = HashMap::new();
-        map.insert("p1".to_string(), sample_meta("p1"));
+        map.insert("p1".to_string(), meta);
         let set = build_desktop_set(&[item], &map);
         assert!(set.contains("p1"));
     }
@@ -720,6 +739,14 @@ mod tests {
     fn test_cache_file_name_default_extension() {
         let name = cache_file_name("https://example.com/image");
         assert!(name.ends_with(".img"));
+    }
+
+    #[test]
+    fn test_is_http_url() {
+        assert!(is_http_url("https://example.com"));
+        assert!(is_http_url("http://example.com"));
+        assert!(!is_http_url("mailto:test@example.com"));
+        assert!(!is_http_url("not a url"));
     }
 
     #[test]
@@ -762,7 +789,7 @@ mod tests {
         let url = station_info_url("uuid-1");
         assert_eq!(
             url,
-            "https://services.drova.io/server-manager/servers/uuid-1"
+            "https://services.drova.io/server-manager/servers/public/uuid-1"
         );
     }
 

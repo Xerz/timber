@@ -15,6 +15,20 @@ document.addEventListener("contextmenu", (event) => {
   event.preventDefault();
 });
 
+document.addEventListener("click", (event) => {
+  const link = event.target.closest("a[href]");
+  if (!link) return;
+
+  const externalUrl = getExternalHttpUrl(link);
+  if (!externalUrl) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  openExternalUrl(externalUrl).catch((error) => {
+    setStatus("Не удалось открыть ссылку", String(error), false);
+  });
+}, true);
+
 let invoke = null;
 let listen = null;
 let started = false;
@@ -128,6 +142,31 @@ function escapeHtml(value = "") {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function getExternalHttpUrl(link) {
+  const rawHref = String(link?.getAttribute("href") || "").trim();
+  if (!rawHref || !/^https?:\/\//i.test(rawHref)) return "";
+
+  try {
+    const url = new URL(rawHref, window.location.href);
+    if (url.protocol === "http:" || url.protocol === "https:") {
+      return url.toString();
+    }
+  } catch (error) {
+    return "";
+  }
+
+  return "";
+}
+
+async function openExternalUrl(url) {
+  if (invoke) {
+    return invoke("open_external_url", { url });
+  }
+
+  window.open(url, "_blank", "noopener,noreferrer");
+  return null;
 }
 
 function formatServerTitle(name) {

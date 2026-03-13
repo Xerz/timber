@@ -48,6 +48,9 @@ async function addTauriStub(page, options = {}) {
           if (cmd === "load_station_details") {
             return Promise.resolve(stationDetails);
           }
+          if (cmd === "open_external_url") {
+            return Promise.resolve(null);
+          }
           if (cmd === "launch_game") {
             if (launchError) return Promise.reject(new Error(launchError));
             return Promise.resolve(null);
@@ -235,4 +238,25 @@ test("filters cards by license, account and game", async ({ page }) => {
   await page.locator('[data-filter-option="game"][data-value="7 Days to Die"]').click();
   await expect(page.locator(".gameList__item")).toHaveCount(1);
   await expect(page.locator(".filter-tag")).toContainText("7 Days to Die");
+});
+
+test("https links open through Tauri opener command", async ({ page }) => {
+  await addTauriStub(page, {
+    cards: [{ productId: "a", title: "A", imageUrl: "", alt: "", requiredAccount: "", isFree: false }],
+    stationDetails: {
+      name: "Тестовый сервер",
+      description: '<p><a href="https://example.com/help">Помощь</a></p>',
+      hardware: { ram_bytes: null, processor: null, graphic: [] }
+    }
+  });
+  await page.goto(`${baseUrl}/index.html`);
+  await page.waitForFunction(() => typeof window.__resetLauncher === "function");
+  await page.evaluate(() => window.__resetLauncher());
+
+  await page.locator("#openDescription").click();
+  await page.locator('#serverDescription a[href="https://example.com/help"]').click();
+
+  const calls = await page.evaluate(() => window.__invokeCalls);
+  expect(calls.some(call => call.cmd === "open_external_url" && call.args?.url === "https://example.com/help")).toBe(true);
+  await expect(page).toHaveURL(`${baseUrl}/index.html`);
 });
