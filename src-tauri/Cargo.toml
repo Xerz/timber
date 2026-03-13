@@ -1,6 +1,6 @@
 [package]
 name = "drova-launcher"
-version = "1.0.5"
+version = "1.1.0"
 description = "Timber Launcher"
 authors = ["xrzvs"]
 edition = "2021"
