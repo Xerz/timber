@@ -207,3 +207,32 @@ test("tauri launch_game error clears launching and shows status", async ({ page 
   await expect(page.locator("#statusText")).toHaveText("Ошибка запуска");
   await expect(card).not.toHaveClass(/is-launching/);
 });
+
+test("filters cards by license, account and game", async ({ page }) => {
+  await addTauriStub(page, {
+    cards: [
+      { productId: "desktop", title: "Рабочий стол", imageUrl: "", alt: "", requiredAccount: "", isFree: true },
+      { productId: "rust", title: "Rust", imageUrl: "", alt: "", requiredAccount: "Steam", isFree: false },
+      { productId: "days7", title: "7 Days to Die", imageUrl: "", alt: "", requiredAccount: "Epic Games", isFree: true }
+    ]
+  });
+  await page.goto(`${baseUrl}/index.html`);
+  await page.waitForFunction(() => typeof window.__resetLauncher === "function");
+  await page.evaluate(() => window.__resetLauncher());
+
+  await expect(page.locator(".gameList__item")).toHaveCount(3);
+
+  await page.locator('[data-filter-toggle="license"]').click();
+  await page.locator('[data-filter-option="license"][data-value="free"]').click();
+  await expect(page.locator(".gameList__item")).toHaveCount(2);
+
+  await page.locator('[data-filter-toggle="account"]').click();
+  await page.locator('[data-filter-option="account"][data-value="Epic Games"]').click();
+  await expect(page.locator(".gameList__item")).toHaveCount(1);
+  await expect(page.locator('.gameList__item[data-product-id="days7"]')).toHaveCount(1);
+
+  await page.locator('[data-filter-toggle="game"]').click();
+  await page.locator('[data-filter-option="game"][data-value="7 Days to Die"]').click();
+  await expect(page.locator(".gameList__item")).toHaveCount(1);
+  await expect(page.locator(".filter-tag")).toContainText("7 Days to Die");
+});

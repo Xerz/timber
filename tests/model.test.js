@@ -1,11 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyCardFilters,
   filterEnabledAvailable,
   buildProductMap,
   buildLaunchParams,
   buildCards,
-  buildFallbackDesktopCard
+  buildFallbackDesktopCard,
+  buildCardFilterOptions,
+  LICENSE_FILTERS
 } from "../src/model.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -100,4 +103,41 @@ test("filterEnabledAvailable respects verified flag", () => {
   const result = filterEnabledAvailable(items);
   assert.equal(result.length, 1);
   assert.equal(result[0].product_id, "p2");
+});
+
+test("buildCardFilterOptions returns unique sorted games and accounts", () => {
+  const options = buildCardFilterOptions([
+    { title: "Rust", requiredAccount: "Steam" },
+    { title: "7 Days to Die", requiredAccount: "Epic Games" },
+    { title: "Rust", requiredAccount: "Steam" },
+    { title: "Desktop", requiredAccount: "" }
+  ]);
+  assert.deepEqual(options.games, ["7 Days to Die", "Desktop", "Rust"]);
+  assert.deepEqual(options.accounts, ["Epic Games", "Steam"]);
+});
+
+test("applyCardFilters filters by game, license and account", () => {
+  const cards = [
+    { title: "Rust", requiredAccount: "Steam", isFree: false },
+    { title: "7 Days to Die", requiredAccount: "Epic Games", isFree: true },
+    { title: "Desktop", requiredAccount: "", isFree: true }
+  ];
+
+  assert.deepEqual(
+    applyCardFilters(cards, { games: ["Rust"], license: LICENSE_FILTERS.ANY, account: LICENSE_FILTERS.ANY }),
+    [{ title: "Rust", requiredAccount: "Steam", isFree: false }]
+  );
+
+  assert.deepEqual(
+    applyCardFilters(cards, { games: [], license: LICENSE_FILTERS.FREE, account: LICENSE_FILTERS.ANY }),
+    [
+      { title: "7 Days to Die", requiredAccount: "Epic Games", isFree: true },
+      { title: "Desktop", requiredAccount: "", isFree: true }
+    ]
+  );
+
+  assert.deepEqual(
+    applyCardFilters(cards, { games: [], license: LICENSE_FILTERS.ANY, account: "Steam" }),
+    [{ title: "Rust", requiredAccount: "Steam", isFree: false }]
+  );
 });

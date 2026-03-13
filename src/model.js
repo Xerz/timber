@@ -27,6 +27,12 @@ export function buildLaunchParams(details = {}) {
   return { exePath, workDir, args };
 }
 
+export const LICENSE_FILTERS = Object.freeze({
+  ANY: "any",
+  FREE: "free",
+  PAID: "paid"
+});
+
 export function buildCards(enabledProducts = [], productMap = new Map()) {
   return enabledProducts.map(item => {
     const productId = item.productId || item.product_id || "";
@@ -46,6 +52,67 @@ export function buildCards(enabledProducts = [], productMap = new Map()) {
       requiredAccount,
       isFree
     };
+  });
+}
+
+export function buildCardFilterOptions(cards = []) {
+  const games = new Set();
+  const accounts = new Set();
+
+  for (const card of cards) {
+    const title = String(card?.title || "").trim();
+    if (title) {
+      games.add(title);
+    }
+
+    const account = String(card?.requiredAccount || "").trim();
+    if (account) {
+      accounts.add(account);
+    }
+  }
+
+  return {
+    games: [...games].sort(compareDisplayText),
+    accounts: [...accounts].sort(compareDisplayText)
+  };
+}
+
+export function applyCardFilters(cards = [], filters = {}) {
+  const selectedGames = Array.isArray(filters.games)
+    ? new Set(filters.games.map(value => String(value || "").trim()).filter(Boolean))
+    : new Set();
+  const selectedLicense = String(filters.license || LICENSE_FILTERS.ANY);
+  const selectedAccount = String(filters.account || "").trim();
+
+  return cards.filter(card => {
+    const title = String(card?.title || "").trim();
+    const account = String(card?.requiredAccount || "").trim();
+    const isFree = card?.isFree === true;
+
+    if (selectedGames.size > 0 && !selectedGames.has(title)) {
+      return false;
+    }
+
+    if (selectedLicense === LICENSE_FILTERS.FREE && !isFree) {
+      return false;
+    }
+
+    if (selectedLicense === LICENSE_FILTERS.PAID && isFree) {
+      return false;
+    }
+
+    if (selectedAccount && selectedAccount !== LICENSE_FILTERS.ANY && account !== selectedAccount) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function compareDisplayText(left, right) {
+  return String(left).localeCompare(String(right), "ru", {
+    sensitivity: "base",
+    numeric: true
   });
 }
 

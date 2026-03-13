@@ -1,3 +1,9 @@
+import {
+  applyCardFilters,
+  buildCardFilterOptions,
+  LICENSE_FILTERS
+} from "./model.js";
+
 const grid = document.getElementById("grid");
 const statusEl = document.getElementById("status");
 const statusText = document.getElementById("statusText");
@@ -19,7 +25,16 @@ let serverName = "";
 let serverDescription = "";
 let serverHardware = null;
 let activeLaunchCard = null;
+let allCards = [];
+let activeFilterDropdown = null;
+let gameFilterQuery = "";
+let filters = createInitialFilters();
 const skipAutoInit = window.__TAURI_TEST_DISABLE_AUTO_INIT === true;
+
+const licenseFilterItems = Object.freeze([
+  { value: LICENSE_FILTERS.FREE, label: "Бесплатная лицензия" },
+  { value: LICENSE_FILTERS.PAID, label: "Платная" }
+]);
 
 function resolveTauriApi() {
   const tauri = window.__TAURI__ || null;
@@ -50,6 +65,28 @@ const loadingCard = {
   startLabel: "Загрузка"
 };
 
+function createInitialFilters() {
+  return {
+    games: [],
+    license: LICENSE_FILTERS.ANY,
+    account: LICENSE_FILTERS.ANY
+  };
+}
+
+function resetFilters() {
+  filters = createInitialFilters();
+  activeFilterDropdown = null;
+  gameFilterQuery = "";
+}
+
+function setCards(cards = [], options = {}) {
+  allCards = Array.isArray(cards) ? cards : [];
+  if (options.resetFilters !== false) {
+    resetFilters();
+  }
+  render(allCards);
+}
+
 retryBtn.addEventListener("click", () => {
   if (invoke) {
     loadCards();
@@ -66,6 +103,23 @@ statusEl.addEventListener("click", (event) => {
   if (event.target === statusEl) {
     clearStatus();
   }
+});
+
+document.addEventListener("click", (event) => {
+  if (!activeFilterDropdown) return;
+  if (event.target.closest("#filtersBar")) return;
+  if (event.target.closest(".gameList__item")) return;
+  if (event.target.closest(".page-action")) return;
+  activeFilterDropdown = null;
+  gameFilterQuery = "";
+  render(allCards);
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || !activeFilterDropdown) return;
+  activeFilterDropdown = null;
+  gameFilterQuery = "";
+  render(allCards);
 });
 
 function escapeHtml(value = "") {
@@ -159,47 +213,192 @@ function setStationDetails(details = {}) {
   }
 }
 
+function renderCard(card) {
+  const title = escapeHtml(card.title || "");
+  const alt = escapeHtml(card.alt || "");
+  const required = card.requiredAccount ? `<div class=\"gameList__item-badge-required-account\">${escapeHtml(card.requiredAccount)}</div>` : "";
+  const free = card.isFree ? "<div class=\"gameList__item-badge-price\">Бесплатная</div>" : "";
+  const isDesktop = card.isDesktop === true;
+  const startLabel = escapeHtml(card.startLabel || "Играть");
+  const startIcon = card.isLoading ? "" : "<i class=\\\"ivu-icon ivu-icon-md-log-in\\\"></i>";
+  const startContent = startIcon ? `${startLabel}&nbsp;${startIcon}` : startLabel;
+  const rawImageUrl = card.imageUrl || "";
+  const safeImageUrl = rawImageUrl.replace(/'/g, "%27");
+  const imageStyle = rawImageUrl ? ` style=\"background-image: url('${encodeURI(safeImageUrl)}')\"` : "";
+  const placeholderClass = rawImageUrl ? "" : "card--placeholder";
+  const loadingClass = card.isLoading ? "is-loading" : "";
+  const loadingAttr = card.isLoading ? " data-loading=\"1\"" : "";
+
+  return `
+    <div class=\"gameList__item gameList__item-thumb ivu-card ivu-card-bordered ${placeholderClass} ${loadingClass}\" data-product-id=\"${escapeHtml(card.productId)}\" data-image-url=\"${escapeHtml(rawImageUrl)}\" data-is-desktop=\"${isDesktop ? "1" : "0"}\"${loadingAttr}>
+      <div class=\"ivu-card-body\">
+        <a href=\"#\" class=\"gameList__item-overlay\" title=\"${alt}\">${title}</a>
+        <div class=\"gameList__item-image\"${imageStyle}></div>
+        <div class=\"gameList__item-title\"><span>${title}</span></div>
+        <div class=\"gameList__item-start gameList__item-start_active\">${startContent}</div>
+        <div class=\"gameList__item-badges\">${required}${free}</div>
+      </div>
+    </div>
+  `;
+}
+
+function shouldShowFilters(cards = []) {
+  return cards.some(card => card && card.isLoading !== true);
+}
+
+function getVisibleGameFilterOptions(options = []) {
+  const query = String(gameFilterQuery || "").trim().toLocaleLowerCase("ru");
+  if (!query) return options;
+  return options.filter(option => option.toLocaleLowerCase("ru").includes(query));
+}
+
+function renderSelectedGameTags() {
+  return filters.games.map(game => `
+    <span class="filter-tag">
+      <span class="filter-tag__label">${escapeHtml(game)}</span>
+      <button class="filter-tag__remove" type="button" data-filter-remove-game="${escapeHtml(game)}" aria-label="Убрать ${escapeHtml(game)}">×</button>
+    </span>
+  `).join("");
+}
+
+function renderGameFilter(options = []) {
+  const isOpen = activeFilterDropdown === "game";
+  const visibleOptions = getVisibleGameFilterOptions(options);
+  const items = visibleOptions.map(option => {
+    const selected = filters.games.includes(option);
+    return `<li class="ivu-select-item${selected ? " ivu-select-item-selected" : ""}" data-filter-option="game" data-value="${escapeHtml(option)}">${escapeHtml(option)}</li>`;
+  }).join("");
+  const placeholder = filters.games.length > 0 ? "" : "Игра";
+
+  return `
+    <div class="filter filter_game ivu-col ivu-col-span-12">
+      <div class="ivu-select ivu-select-multiple ivu-select-default filter-select${isOpen ? " ivu-select-visible" : ""}" data-filter-root="game">
+        <div tabindex="0" class="ivu-select-selection filter-select__selection" data-filter-toggle="game">
+          <input type="hidden">
+          <div class="filter-select__multiple-content">
+            <div class="filter-select__tags">${renderSelectedGameTags()}</div>
+            <input
+              type="text"
+              class="ivu-select-input filter-select__input"
+              data-filter-search="game"
+              placeholder="${escapeHtml(placeholder)}"
+              autocomplete="off"
+              spellcheck="false"
+              value="${escapeHtml(gameFilterQuery)}"
+            >
+            <i class="ivu-icon ivu-icon-ios-arrow-down ivu-select-arrow"></i>
+          </div>
+        </div>
+        <div class="ivu-select-dropdown filter-select__dropdown${isOpen ? "" : " is-hidden"}">
+          <ul class="ivu-select-not-found"${visibleOptions.length > 0 ? " style=\"display: none;\"" : ""}>
+            <li>Игра</li>
+          </ul>
+          <ul class="ivu-select-dropdown-list"${visibleOptions.length === 0 ? " style=\"display: none;\"" : ""}>
+            ${items}
+          </ul>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderSingleFilter({ key, placeholder, selectedValue, allLabel, options = [] }) {
+  const isOpen = activeFilterDropdown === key;
+  const items = [
+    { value: LICENSE_FILTERS.ANY, label: allLabel },
+    ...options
+  ].map(option => {
+    const selected = option.value === selectedValue;
+    return `<li class="ivu-select-item${selected ? " ivu-select-item-selected" : ""}" data-filter-option="${escapeHtml(key)}" data-value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</li>`;
+  }).join("");
+  const selectedLabel = options
+    .concat({ value: LICENSE_FILTERS.ANY, label: allLabel })
+    .find(option => option.value === selectedValue)?.label;
+  const showPlaceholder = !selectedLabel || selectedValue === LICENSE_FILTERS.ANY;
+
+  return `
+    <div class="filter filter_${escapeHtml(key)} ivu-col ivu-col-span-6">
+      <div class="ivu-select ivu-select-single ivu-select-default filter-select${isOpen ? " ivu-select-visible" : ""}" data-filter-root="${escapeHtml(key)}">
+        <div tabindex="0" class="ivu-select-selection filter-select__selection" data-filter-toggle="${escapeHtml(key)}">
+          <input type="hidden">
+          <div class="filter-select__single-content">
+            ${showPlaceholder
+              ? `<span class="ivu-select-placeholder">${escapeHtml(placeholder)}</span>`
+              : `<span class="ivu-select-selected-value">${escapeHtml(selectedLabel)}</span>`}
+            <i class="ivu-icon ivu-icon-ios-arrow-down ivu-select-arrow"></i>
+          </div>
+        </div>
+        <div class="ivu-select-dropdown filter-select__dropdown${isOpen ? "" : " is-hidden"}">
+          <ul class="ivu-select-dropdown-list">
+            ${items}
+          </ul>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFilters(cards = []) {
+  if (!shouldShowFilters(cards)) {
+    return "";
+  }
+
+  const options = buildCardFilterOptions(cards);
+  const accountOptions = options.accounts.map(account => ({ value: account, label: account }));
+
+  return `
+    <div class="stations__filter ivu-row ivu-row-flex filters-bar" id="filtersBar">
+      ${renderGameFilter(options.games)}
+      ${renderSingleFilter({
+        key: "license",
+        placeholder: "Лицензия",
+        selectedValue: filters.license,
+        allLabel: "Любая лицензия",
+        options: licenseFilterItems
+      })}
+      ${renderSingleFilter({
+        key: "account",
+        placeholder: "Учетная запись",
+        selectedValue: filters.account,
+        allLabel: "Любой игровой аккаунт",
+        options: accountOptions
+      })}
+    </div>
+  `;
+}
+
+function renderEmptyState() {
+  return `
+    <div class="filters-empty">
+      <div class="filters-empty__title">Игры не найдены</div>
+      <div class="filters-empty__text">Измените фильтры и попробуйте снова.</div>
+    </div>
+  `;
+}
+
 function render(cards) {
+  const displayCards = applyCardFilters(cards, filters);
   const header = `
     <div class="page-header">
       <h1 class="page__title"><span id="serverTitleText">${escapeHtml(formatServerTitle(serverName))}</span><span id="progressText">${escapeHtml(progressLabel)}</span></h1>
       ${renderServerDialogs()}
     </div>
+    ${renderFilters(cards)}
     <div class="launch-overlay is-hidden" id="launchOverlay">
       <div class="launch-overlay__text">Нажмите в любом месте для возврата к списку игр</div>
     </div>
     <div class="row-break"></div>
   `;
-  const items = cards.map(card => {
-    const title = escapeHtml(card.title || "");
-    const alt = escapeHtml(card.alt || "");
-    const required = card.requiredAccount ? `<div class=\"gameList__item-badge-required-account\">${escapeHtml(card.requiredAccount)}</div>` : "";
-    const free = card.isFree ? `<div class=\"gameList__item-badge-price\">Бесплатная</div>` : "";
-    const isDesktop = card.isDesktop === true;
-    const startLabel = escapeHtml(card.startLabel || "Играть");
-    const startIcon = card.isLoading ? "" : "<i class=\\\"ivu-icon ivu-icon-md-log-in\\\"></i>";
-    const startContent = startIcon ? `${startLabel}&nbsp;${startIcon}` : startLabel;
-    const rawImageUrl = card.imageUrl || "";
-    const safeImageUrl = rawImageUrl.replace(/'/g, "%27");
-    const imageStyle = rawImageUrl ? ` style=\"background-image: url('${encodeURI(safeImageUrl)}')\"` : "";
-    const placeholderClass = rawImageUrl ? "" : "card--placeholder";
-    const loadingClass = card.isLoading ? "is-loading" : "";
-    const loadingAttr = card.isLoading ? " data-loading=\"1\"" : "";
-
-    return `
-      <div class=\"gameList__item gameList__item-thumb ivu-card ivu-card-bordered ${placeholderClass} ${loadingClass}\" data-product-id=\"${escapeHtml(card.productId)}\" data-image-url=\"${escapeHtml(rawImageUrl)}\" data-is-desktop=\"${isDesktop ? "1" : "0"}\"${loadingAttr}>
-        <div class=\"ivu-card-body\">
-          <a href=\"#\" class=\"gameList__item-overlay\" title=\"${alt}\">${title}</a>
-          <div class=\"gameList__item-image\"${imageStyle}></div>
-          <div class=\"gameList__item-title\"><span>${title}</span></div>
-          <div class=\"gameList__item-start gameList__item-start_active\">${startContent}</div>
-          <div class=\"gameList__item-badges\">${required}${free}</div>
-        </div>
-      </div>
-    `;
-  }).join("");
+  const items = displayCards.length > 0 ? displayCards.map(renderCard).join("") : renderEmptyState();
 
   grid.innerHTML = header + items;
+
+  const filtersBar = document.getElementById("filtersBar");
+  if (filtersBar) {
+    filtersBar.addEventListener("click", handleFiltersClick);
+    filtersBar.addEventListener("input", handleFiltersInput);
+    filtersBar.addEventListener("keydown", handleFiltersKeydown);
+  }
 
   const openDescription = document.getElementById("openDescription");
   if (openDescription) {
@@ -264,6 +463,112 @@ function render(cards) {
       }
     });
   });
+
+  queueGameFilterFocus();
+}
+
+function queueGameFilterFocus() {
+  if (activeFilterDropdown !== "game") return;
+  window.requestAnimationFrame(() => {
+    const input = grid.querySelector("[data-filter-search='game']");
+    if (!input) return;
+    input.focus();
+    const value = input.value || "";
+    input.setSelectionRange(value.length, value.length);
+  });
+}
+
+function handleFiltersClick(event) {
+  const removeButton = event.target.closest("[data-filter-remove-game]");
+  if (removeButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    const value = removeButton.dataset.filterRemoveGame || "";
+    filters = {
+      ...filters,
+      games: filters.games.filter(game => game !== value)
+    };
+    render(allCards);
+    return;
+  }
+
+  const option = event.target.closest("[data-filter-option]");
+  if (option) {
+    event.preventDefault();
+    event.stopPropagation();
+    const key = option.dataset.filterOption;
+    const value = option.dataset.value || LICENSE_FILTERS.ANY;
+
+    if (key === "game") {
+      filters = {
+        ...filters,
+        games: filters.games.includes(value)
+          ? filters.games.filter(game => game !== value)
+          : [...filters.games, value]
+      };
+      activeFilterDropdown = "game";
+      render(allCards);
+      return;
+    }
+
+    if (key === "license") {
+      filters = { ...filters, license: value };
+    }
+
+    if (key === "account") {
+      filters = { ...filters, account: value };
+    }
+
+    activeFilterDropdown = null;
+    gameFilterQuery = "";
+    render(allCards);
+    return;
+  }
+
+  const searchInput = event.target.closest("[data-filter-search='game']");
+  if (searchInput) {
+    event.stopPropagation();
+    if (activeFilterDropdown !== "game") {
+      activeFilterDropdown = "game";
+      render(allCards);
+    }
+    return;
+  }
+
+  const toggle = event.target.closest("[data-filter-toggle]");
+  if (!toggle) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  const key = toggle.dataset.filterToggle;
+  const nextDropdown = activeFilterDropdown === key ? null : key;
+  activeFilterDropdown = nextDropdown;
+  if (nextDropdown !== "game") {
+    gameFilterQuery = "";
+  }
+  render(allCards);
+}
+
+function handleFiltersInput(event) {
+  const input = event.target.closest("[data-filter-search='game']");
+  if (!input) return;
+  gameFilterQuery = input.value || "";
+  activeFilterDropdown = "game";
+  render(allCards);
+}
+
+function handleFiltersKeydown(event) {
+  const input = event.target.closest("[data-filter-search='game']");
+  if (!input) return;
+
+  if (event.key === "Backspace" && !input.value && filters.games.length > 0) {
+    event.preventDefault();
+    filters = {
+      ...filters,
+      games: filters.games.slice(0, -1)
+    };
+    render(allCards);
+  }
 }
 
 function renderLoading(count = 6) {
@@ -271,7 +576,7 @@ function renderLoading(count = 6) {
     ...loadingCard,
     productId: `loading-${index + 1}`
   }));
-  render(cards);
+  setCards(cards);
 }
 
 function setProgressLabel(label) {
@@ -379,12 +684,12 @@ function loadCards() {
       loadingActive = false;
       clearStatus();
       setProgressLabel("");
-      render(cards || []);
+      setCards(cards || []);
     } catch (error) {
       loadingActive = false;
       setStatus("Ошибка загрузки данных", String(error), true);
       setProgressLabel("");
-      render([fallbackDesktopCard]);
+      setCards([fallbackDesktopCard]);
     }
   })();
   return lastLoadPromise;
@@ -443,7 +748,7 @@ if (!skipAutoInit) {
         .then(res => res.json())
         .then(cards => {
           setProgressLabel("");
-          render(cards);
+          setCards(cards);
         })
         .catch(() => {
           setProgressLabel("");
@@ -464,7 +769,7 @@ if (!skipAutoInit) {
     .then(res => res.json())
     .then(cards => {
       setProgressLabel("");
-      render(cards);
+      setCards(cards);
     })
     .catch(() => {
       setProgressLabel("");
@@ -472,7 +777,7 @@ if (!skipAutoInit) {
     });
 }
 
-window.__setCards = render;
+window.__setCards = (cards, options) => setCards(cards, options);
 window.__setStatus = setStatus;
 window.__clearStatus = clearStatus;
 window.__resetLauncher = () => {

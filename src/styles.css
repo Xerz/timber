@@ -7,6 +7,117 @@
   margin-bottom: 24px;
 }
 
+.filters-bar {
+  width: 100%;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.filter-select {
+  position: relative;
+  width: 100%;
+}
+
+.filter-select__selection {
+  min-height: 38px;
+}
+
+.filter-select__single-content,
+.filter-select__multiple-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding-right: 24px;
+}
+
+.filter-select__multiple-content {
+  flex-wrap: wrap;
+  align-content: center;
+}
+
+.filter-select__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+
+.filter-select__input {
+  flex: 1 1 120px;
+  min-width: 120px;
+  width: auto !important;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  padding-right: 0;
+}
+
+.filter-select__input:focus {
+  outline: none;
+}
+
+.filter-select__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: block;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f1f3f6;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.filter-tag__label {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-tag__remove {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.filters-empty {
+  width: 100%;
+  margin: 32px 0 16px;
+  padding: 24px;
+  text-align: center;
+  background: rgba(8, 12, 18, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f1f3f6;
+}
+
+.filters-empty__title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.filters-empty__text {
+  margin-top: 8px;
+  color: #9aa4b2;
+}
+
 .page__title {
   margin-bottom: 18px;
 }
@@ -164,4 +275,15 @@
 
 .status-modal {
   z-index: 90;
+}
+
+@media (max-width: 768px) {
+  .filters-bar .ivu-col {
+    max-width: 100%;
+    flex: 0 0 100%;
+  }
+
+  .filter-select__input {
+    min-width: 80px;
+  }
 }
