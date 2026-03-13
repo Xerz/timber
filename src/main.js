@@ -276,7 +276,7 @@ function renderGameFilter(options = []) {
         <div tabindex="0" class="ivu-select-selection filter-select__selection" data-filter-toggle="game">
           <input type="hidden">
           <div class="filter-select__multiple-content">
-            <div class="filter-select__tags">${renderSelectedGameTags()}</div>
+            ${renderSelectedGameTags()}
             <input
               type="text"
               class="ivu-select-input filter-select__input"

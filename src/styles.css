@@ -37,21 +37,18 @@
   align-content: center;
 }
 
-.filter-select__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  flex: 1 1 auto;
-}
-
 .filter-select__input {
-  flex: 1 1 120px;
+  flex: 1 0 120px;
   min-width: 120px;
   width: auto !important;
   background: transparent;
   border: 0;
   color: inherit;
   padding-right: 0;
+}
+
+.filter-select__multiple-content > .filter-select__input:first-child {
+  flex-basis: 100%;
 }
 
 .filter-select__input:focus {
@@ -71,6 +68,7 @@
 
 .filter-tag {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 6px;
   max-width: 100%;
