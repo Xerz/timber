@@ -211,6 +211,27 @@ test("tauri launch_game error clears launching and shows status", async ({ page 
   await expect(card).not.toHaveClass(/is-launching/);
 });
 
+test("desktop launch keeps overlay until dismissed", async ({ page }) => {
+  await addTauriStub(page, {
+    cards: [{ productId: "desktop", title: "Рабочий стол", imageUrl: "", alt: "", requiredAccount: "", isFree: true, isDesktop: true }]
+  });
+  await page.goto(`${baseUrl}/index.html`);
+  await page.waitForFunction(() => typeof window.__resetLauncher === "function");
+  await page.evaluate(() => window.__resetLauncher());
+
+  const card = page.locator('.gameList__item[data-product-id="desktop"]');
+  await card.click();
+
+  await expect(card).toHaveClass(/is-launching/);
+  await expect(page.locator("#launchOverlay")).not.toHaveClass(/is-hidden/);
+
+  await page.waitForTimeout(5100);
+  await page.locator("#launchOverlay").click();
+
+  await expect(page.locator("#launchOverlay")).toHaveClass(/is-hidden/);
+  await expect(card).not.toHaveClass(/is-launching/);
+});
+
 test("filters cards by license, account and game", async ({ page }) => {
   await addTauriStub(page, {
     cards: [

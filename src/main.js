@@ -487,14 +487,9 @@ function render(cards) {
         setTimeout(() => cardEl.classList.remove("is-launching"), 800);
         return;
       }
-      if (!isDesktop) {
-        showLaunchOverlay(5000);
-      }
+      showLaunchOverlay(5000);
       try {
         await withTimeout(invoke("launch_game", { productId }), 10_000, "Таймаут запуска");
-        if (isDesktop) {
-          activeLaunchCard = null;
-        }
       } catch (error) {
         cardEl.classList.remove("is-launching");
         activeLaunchCard = null;
