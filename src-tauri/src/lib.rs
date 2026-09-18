@@ -10,6 +10,8 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
+mod window_mode;
+
 const CACHE_TTL_SECS: u64 = 24 * 60 * 60;
 const DESKTOP_PRODUCT_ID: &str = "9fd0eb43-b2bb-4ce3-93b8-9df63f209098";
 
@@ -602,7 +604,9 @@ fn get_station_info() -> Result<StationInfo, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let windowed = window_mode::is_windowed(std::env::args_os().skip(1));
     tauri::Builder::default()
+        .setup(move |app| window_mode::create_main_window(app, windowed))
         .manage(SharedState::default())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
