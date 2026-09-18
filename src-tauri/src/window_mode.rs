@@ -1,6 +1,10 @@
 use std::ffi::OsStr;
 use tauri::{PhysicalPosition, PhysicalSize};
 
+#[cfg(windows)]
+#[path = "window_lock.rs"]
+mod window_lock;
+
 pub fn is_windowed(args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> bool {
     args.into_iter().any(|arg| arg.as_ref() == "--windowed")
 }
@@ -51,13 +55,22 @@ pub fn create_main_window(
         None
     };
 
-    let window = tauri::WebviewWindowBuilder::from_config(app, config)?
+    let mut builder = tauri::WebviewWindowBuilder::from_config(app, config)?
         .fullscreen(!windowed && config.fullscreen)
-        .visible(false)
-        .build()?;
+        .visible(false);
+    if windowed {
+        builder = builder
+            .maximizable(false)
+            .initialization_script("window.__DROVA_WINDOWED__ = true;");
+    }
+    let window = builder.build()?;
     if let Some((position, size)) = bounds {
         window.set_size(size)?;
         window.set_position(position)?;
+        #[cfg(windows)]
+        // setup runs on the window's thread; installation verifies this before
+        // touching the subclass. The window stays hidden if installation fails.
+        window_lock::install(window.hwnd()?.0 as _)?;
     }
     window.show()?;
     Ok(())

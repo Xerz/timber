@@ -39,6 +39,8 @@ let serverName = "";
 let serverDescription = "";
 let serverHardware = null;
 let activeLaunchCard = null;
+let launchOverlayTimer = null;
+const LAUNCH_OVERLAY_DELAY_MS = 10_000;
 let allCards = [];
 let activeFilterDropdown = null;
 let gameFilterQuery = "";
@@ -487,7 +489,7 @@ function render(cards) {
         setTimeout(() => cardEl.classList.remove("is-launching"), 800);
         return;
       }
-      showLaunchOverlay(5000);
+      showLaunchOverlay();
       try {
         await withTimeout(invoke("launch_game", { productId }), 10_000, "Таймаут запуска");
       } catch (error) {
@@ -621,20 +623,24 @@ function setProgressLabel(label) {
   }
 }
 
-function showLaunchOverlay(minDurationMs = 5000) {
+function showLaunchOverlay() {
   const overlay = document.getElementById("launchOverlay");
   if (!overlay) return;
+  clearTimeout(launchOverlayTimer);
   overlay.dataset.canDismiss = "0";
   overlay.classList.remove("is-hidden");
-  setTimeout(() => {
+  launchOverlayTimer = setTimeout(() => {
     overlay.dataset.canDismiss = "1";
-  }, minDurationMs);
+    launchOverlayTimer = null;
+  }, LAUNCH_OVERLAY_DELAY_MS);
 }
 
 function hideLaunchOverlay(force = false) {
   const overlay = document.getElementById("launchOverlay");
   if (!overlay) return;
   if (!force && overlay.dataset.canDismiss !== "1") return;
+  clearTimeout(launchOverlayTimer);
+  launchOverlayTimer = null;
   overlay.classList.add("is-hidden");
   if (activeLaunchCard) {
     activeLaunchCard.classList.remove("is-launching");

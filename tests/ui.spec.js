@@ -133,6 +133,86 @@ test.afterAll(async () => {
   await new Promise(resolve => server.close(resolve));
 });
 
+test.beforeEach(async ({ page }) => {
+  // Mock cards must not depend on the availability of the production image CDN.
+  // The intentionally broken local image still exercises the real fallback.
+  await page.route("https://files.drova.io/**", route => route.fulfill({
+    contentType: "image/svg+xml",
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#345"/></svg>'
+  }));
+});
+
+async function loadWindowModeFixture(page, windowed) {
+  await page.addInitScript(value => { window.__DROVA_WINDOWED__ = value; }, windowed);
+  await addTauriStub(page, {
+    cards: Array.from({ length: 60 }, (_, i) => ({
+      productId: `game-${i}`, title: `Игра ${String(i).padStart(2, "0")}`,
+      imageUrl: "", alt: "", requiredAccount: "", isFree: false
+    })),
+    stationDetails: {
+      name: "Сервер с очень длинным названием для проверки переноса приветствия на несколько строк",
+      description: Array.from({ length: 80 }, (_, i) => `<p>Строка описания ${i}</p>`).join(""),
+      hardware: { graphic: [] }
+    }
+  });
+  await page.goto(`${baseUrl}/index.html`);
+  await page.waitForFunction(() => typeof window.__resetLauncher === "function");
+  await page.evaluate(() => window.__resetLauncher());
+  await expect(page.locator(".gameList__item")).toHaveCount(60);
+  await expect(page.locator("#serverTitleText")).toContainText("Сервер с очень длинным");
+}
+
+for (const width of [820, 1152]) {
+  for (const windowed of [true, false]) {
+    test(`windowed=${windowed}: header spacing and reload at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 600 });
+      await loadWindowModeFixture(page, windowed);
+      const header = page.locator(".page-header");
+      await expect(header).toHaveCSS("padding-top", windowed ? "18px" : "0px");
+      await expect(page.locator(".page__title")).toHaveCSS("margin-bottom", "18px");
+      await expect(page.locator("html")).toHaveCSS("scrollbar-width", windowed ? "none" : "auto");
+      expect(await page.locator(".page__title").evaluate(el => el.getBoundingClientRect().top))
+        .toBe(windowed ? 18 : 0);
+      await page.reload();
+      await expect(page.locator("html")).toHaveClass(windowed ? /windowed-mode/ : /^$/);
+    });
+  }
+
+  test(`windowed: hidden scrollbars preserve page, modal and filter scrolling at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 600 });
+    await loadWindowModeFixture(page, true);
+
+    const assertHiddenScrollbar = async locator => {
+      await expect(locator).toHaveCSS("scrollbar-width", "none");
+      expect(await locator.evaluate(el => getComputedStyle(el, "::-webkit-scrollbar").display)).toBe("none");
+    };
+    await assertHiddenScrollbar(page.locator("html"));
+    await page.mouse.move(width / 2, 500);
+    await page.mouse.wheel(0, 450);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    const scrollBeforeKey = await page.evaluate(() => window.scrollY);
+    await page.keyboard.press("PageDown");
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(scrollBeforeKey);
+
+    await page.locator("#openDescription").click();
+    const modal = page.locator("#descriptionModal .modal");
+    await expect(modal).toBeVisible();
+    await assertHiddenScrollbar(modal);
+    await modal.hover();
+    await page.mouse.wheel(0, 450);
+    await expect.poll(() => modal.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+    await page.locator("#descriptionModal .modal__close").click();
+
+    await page.locator('[data-filter-toggle="game"]').click();
+    const dropdown = page.locator('[data-filter-root="game"] .filter-select__dropdown');
+    await expect(dropdown).toBeVisible();
+    await assertHiddenScrollbar(dropdown);
+    await dropdown.hover();
+    await page.mouse.wheel(0, 450);
+    await expect.poll(() => dropdown.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+  });
+}
+
 test("renders tiles from mock data", async ({ page }) => {
   await page.goto(`${baseUrl}/index.html?mock=1`);
   await page.waitForSelector(".gameList__item");
@@ -211,26 +291,44 @@ test("tauri launch_game error clears launching and shows status", async ({ page 
   await expect(card).not.toHaveClass(/is-launching/);
 });
 
-test("desktop launch keeps overlay until dismissed", async ({ page }) => {
-  await addTauriStub(page, {
-    cards: [{ productId: "desktop", title: "Рабочий стол", imageUrl: "", alt: "", requiredAccount: "", isFree: true, isDesktop: true }]
+for (const productId of ["desktop", "steam-game"]) {
+  test(`${productId} launch unlocks overlay after 10 seconds`, async ({ page }) => {
+    await page.clock.install({ time: new Date("2026-09-18T00:00:00Z") });
+    await addTauriStub(page, {
+      cards: [{ productId, title: productId, imageUrl: "", alt: "", requiredAccount: "", isFree: true, isDesktop: productId === "desktop" }]
+    });
+    await page.goto(`${baseUrl}/index.html`);
+    await page.waitForFunction(() => typeof window.__resetLauncher === "function");
+    await page.evaluate(() => window.__resetLauncher());
+
+    const card = page.locator(`.gameList__item[data-product-id="${productId}"]`);
+    await expect(card).toBeVisible();
+    await page.clock.pauseAt(new Date("2026-09-18T00:01:00Z"));
+    await card.click();
+
+    const overlay = page.locator("#launchOverlay");
+    await expect(card).toHaveClass(/is-launching/);
+    await expect(overlay).not.toHaveClass(/is-hidden/);
+    await expect(overlay).toHaveAttribute("data-can-dismiss", "0");
+    await expect(page.locator(".launch-overlay__text")).toHaveCSS("opacity", "0");
+
+    await page.clock.runFor(5000);
+    await overlay.click();
+    await expect(overlay).not.toHaveClass(/is-hidden/);
+    await page.clock.runFor(4999);
+    await expect(overlay).toHaveAttribute("data-can-dismiss", "0");
+    await expect(page.locator(".launch-overlay__text")).toHaveCSS("opacity", "0");
+    await overlay.click();
+    await expect(overlay).not.toHaveClass(/is-hidden/);
+    await page.clock.runFor(1);
+    await expect(overlay).toHaveAttribute("data-can-dismiss", "1");
+    await expect(page.locator(".launch-overlay__text")).toHaveCSS("opacity", "1");
+    await overlay.click();
+
+    await expect(overlay).toHaveClass(/is-hidden/);
+    await expect(card).not.toHaveClass(/is-launching/);
   });
-  await page.goto(`${baseUrl}/index.html`);
-  await page.waitForFunction(() => typeof window.__resetLauncher === "function");
-  await page.evaluate(() => window.__resetLauncher());
-
-  const card = page.locator('.gameList__item[data-product-id="desktop"]');
-  await card.click();
-
-  await expect(card).toHaveClass(/is-launching/);
-  await expect(page.locator("#launchOverlay")).not.toHaveClass(/is-hidden/);
-
-  await page.waitForTimeout(5100);
-  await page.locator("#launchOverlay").click();
-
-  await expect(page.locator("#launchOverlay")).toHaveClass(/is-hidden/);
-  await expect(card).not.toHaveClass(/is-launching/);
-});
+}
 
 test("filters cards by license, account and game", async ({ page }) => {
   await addTauriStub(page, {

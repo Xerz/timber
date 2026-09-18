@@ -268,14 +268,7 @@ fn launch_game(app: AppHandle, state: State<'_, SharedState>, product_id: String
         return Err("Пустой путь запуска".to_string());
     }
 
-    let mut command = Command::new(&launch.exe_path);
-    if !launch.work_dir.is_empty() {
-        command.current_dir(&launch.work_dir);
-    }
     let normalized_args = normalize_launch_args(&launch.args);
-    if let Some(arg) = normalized_args.as_ref() {
-        command.arg(arg);
-    }
 
     if cfg!(debug_assertions) {
         log_debug(&format!(
@@ -298,6 +291,11 @@ fn launch_game(app: AppHandle, state: State<'_, SharedState>, product_id: String
                 .map_err(|err: tauri_plugin_opener::Error| err.to_string());
         }
     }
+    let mut command = Command::new(&launch.exe_path);
+    if !launch.work_dir.is_empty() {
+        command.current_dir(&launch.work_dir);
+    }
+    append_launch_args(&mut command, &launch.args)?;
     command.spawn().map_err(|err| err.to_string())?;
     Ok(())
 }
@@ -484,7 +482,36 @@ fn normalize_launch_args(raw: &str) -> Option<String> {
         return None;
     }
 
-    Some(unwrap_outer_quotes(trimmed).to_string())
+    // Only a complete Epic URI may have enclosing storage quotes removed.
+    // Ordinary command lines must keep quotes around individual arguments.
+    let unwrapped = unwrap_outer_quotes(trimmed);
+    Some(if is_epic_uri(unwrapped) {
+        unwrapped.to_string()
+    } else {
+        trimmed.to_string()
+    })
+}
+
+fn append_launch_args(command: &mut Command, raw: &str) -> Result<(), String> {
+    let args = raw.trim();
+    if args.is_empty() {
+        return Ok(());
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // The station supplies a Windows command line, not a single argv item.
+        // Passing it to arg() quotes the whole line, hiding -applaunch from Steam.
+        // Preserve native quoting and backslashes; no shell is invoked here.
+        command.raw_arg(args);
+    }
+    #[cfg(not(windows))]
+    {
+        let parsed = shell_words::split(args)
+            .map_err(|err| format!("Некорректные аргументы запуска: {}", err))?;
+        command.args(parsed);
+    }
+    Ok(())
 }
 
 fn unwrap_outer_quotes(value: &str) -> &str {
@@ -624,6 +651,60 @@ mod tests {
     use super::*;
     use std::time::Duration;
 
+    #[test]
+    fn test_normalize_launch_args_preserves_argument_quotes() {
+        assert_eq!(normalize_launch_args("  \t  "), None);
+        for args in [
+            "-applaunch 730 -language russian",
+            r#""C:\Games\My Game\config.cfg" "second argument""#,
+            "steam://rungameid/730",
+        ] {
+            assert_eq!(normalize_launch_args(args).as_deref(), Some(args));
+        }
+    }
+
+    #[test]
+    fn test_epic_uri_keeps_opener_routing() {
+        let uri = "com.epicgames.launcher://apps/example?action=launch&silent=true";
+        for raw in [uri.to_string(), format!("\"{}\"", uri), format!("'{}'", uri)] {
+            let normalized = normalize_launch_args(&raw).unwrap();
+            assert_eq!(normalized, uri);
+            assert!(is_epic_uri(&normalized));
+        }
+        assert!(!is_epic_uri("-applaunch 730"));
+    }
+
+    #[test]
+    fn test_empty_launch_args() {
+        let mut command = Command::new("game");
+        append_launch_args(&mut command, "  \t ").unwrap();
+        assert_eq!(command.get_args().count(), 0);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn test_launch_args_are_separate_and_preserve_quoted_values() {
+        let mut command = Command::new("steam");
+        append_launch_args(&mut command, r#"-applaunch 730 -language russian "two words""#).unwrap();
+        let args: Vec<_> = command.get_args().map(|arg| arg.to_str().unwrap()).collect();
+        assert_eq!(args, ["-applaunch", "730", "-language", "russian", "two words"]);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_launch_args_are_not_quoted_as_one_argument() {
+        // A fixed shell probe exercises the actual Windows process command line
+        // without starting Steam or a game. Production launches the supplied exe directly.
+        let mut command = Command::new("cmd.exe");
+        append_launch_args(&mut command, r#"/D /C echo -applaunch 730 "C:\Games\My Game""#).unwrap();
+        let output = command.output().unwrap();
+        assert!(output.status.success());
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap().trim(),
+            r#"-applaunch 730 "C:\Games\My Game""#
+        );
+    }
+
     fn sample_meta(product_id: &str) -> ProductMeta {
         ProductMeta {
             product_id: product_id.to_string(),
@@ -755,7 +836,7 @@ mod tests {
 
     #[test]
     fn test_file_url() {
-        let url = file_url(Path::new("/tmp/test.png")).unwrap();
+        let url = file_url(&std::env::temp_dir().join("test.png")).unwrap();
         assert!(url.starts_with("file://"));
     }
 

@@ -2,6 +2,11 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      if (window.__DROVA_WINDOWED__ === true) {
+        document.documentElement.classList.add("windowed-mode");
+      }
+    </script>
     <link rel="stylesheet" href="index.min.css" />
     <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

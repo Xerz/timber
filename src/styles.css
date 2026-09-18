@@ -1,3 +1,19 @@
+.windowed-mode,
+.windowed-mode * {
+  scrollbar-width: none;
+}
+
+.windowed-mode::-webkit-scrollbar,
+.windowed-mode *::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.windowed-mode .page-header {
+  padding-top: 18px;
+}
+
 .card--placeholder .gameList__item-image {
   background: #111217;
 }
